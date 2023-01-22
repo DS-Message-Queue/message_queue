@@ -1,0 +1,24 @@
+curl -X GET '127.0.0.1:8002/topics'
+
+
+curl -H 'Content-Type: application/json' \
+      -d '{ "topic_name" : "foo"}' \
+      -X POST \
+      127.0.0.1:8001/topics
+
+curl -H 'Content-Type: application/json' \
+      -d '{ "topic" : "foo"}' \
+      -X POST \
+      127.0.0.1:8001/consumer/register
+
+curl -H 'Content-Type: application/json' \
+      -d '{ "topic" : "foo"}' \
+      -X POST \
+      127.0.0.1:8001/producer/register
+
+curl -H 'Content-Type: application/json' \
+      -d '{ "topic" : "foo", "producer_id" : 2144522, "message" : "foo2!"}' \
+      -X POST \
+      127.0.0.1:8001/producer/produce
+
+curl -X GET '127.0.0.1:8002/consumer/consume?topic=foo&consumer_id=123421'
