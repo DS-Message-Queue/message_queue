@@ -1,0 +1,330 @@
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import re
+
+# returns None in case of error
+def extract_url_params(data):
+    i = 0
+    params = {}
+    key = ""
+    value = ""
+    extracting_key = True
+    while i < len(data):
+        if data[i] == '&':
+            if len(value) == 0:
+                return None
+            else:
+                params[key] = value
+                key = ""
+                value = ""
+                extracting_key = True
+        elif data[i] == '=':
+            if len(key) == 0:
+                return None
+            else:
+                extracting_key = False
+        else:
+            if extracting_key:
+                key += data[i]
+            else:
+                value += data[i]
+        i += 1
+    
+    # should be extracting value at this point
+    if extracting_key or len(value) == 0:
+        return None
+    
+    params[key] = value
+    return params
+
+class MyServerHandler(BaseHTTPRequestHandler):
+    def __init__(self, *args):
+        
+        # Connect to db server here and store necessary variables in self
+        # Be aware that this gets called everytime an HTTP request is made
+        # So maybe there is a better place for it
+
+        BaseHTTPRequestHandler.__init__(self, *args)
+
+    # def __del__(self):
+    #    # close connection to db here
+
+    def do_GET(self):
+        # ListTopics
+        if self.path == "/topics":
+            print('topics requested')
+            # build response
+            response = {}
+
+            # retrieve topics
+            # topics = get_topics()
+            topics = ['post_created', 'user_signup', 'user_login']
+            
+            if True: # Status
+                response['status'] = 'success'
+                response['topics'] = topics
+            else:
+                response['status'] = 'failure'
+                response['message'] = 'failure messasge'
+
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        # dequeue
+        elif re.match("^(/consumer/consume)", self.path) != None:
+            print("dequeue requested")
+            json_is_valid = True
+            data_json = extract_url_params(self.path[18:])
+            response = {}
+            if data_json is None:
+                print('invalid data in params')
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
+                                                     and 'consumer_id' in data_json:
+                topic        =  data_json['topic']
+                consumer_id  =  data_json['consumer_id']
+
+                # dequeue
+                # message = consumer_dequeue(topic, consumer_id)
+                message = "test message"
+                
+                if len(message) > 0: # Status
+                    response['status'] = 'success'
+                    response['message'] = message
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                
+            else:
+                # incorrect params in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        # size
+        elif re.match("^(/size)", self.path) != None:
+            print("size requested")
+            json_is_valid = True
+            data_json = extract_url_params(self.path[6:])
+            response = {}
+            if data_json is None:
+                print('JSON decode failed')
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
+                                                     and 'consumer_id' in data_json:
+                topic        =  data_json['topic']
+                consumer_id  =  data_json['consumer_id']
+
+                # size
+                # size = consumer_queue_size(topic, consumer_id)
+                size = 12
+                
+                if size > 0: # Status
+                    response['status'] = 'success'
+                    response['size'] = size
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                
+            else:
+                # incorrect params in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        else:
+            print("invalid path request")
+
+    
+    def do_POST(self):
+        # CreateTopic
+        if self.path == "/topics":
+            print('create topic requested')
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            response = {}
+            json_is_valid = True
+            data_json = None
+            try:
+                data_json = json.loads(data)
+            except json.decoder.JSONDecodeError:
+                print('JSON decode failed')
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 1 and 'topic_name' in data_json:
+                topic_name = data_json['topic_name']
+
+                # create and store topic
+                # result = create_topic(topic_name)
+                
+                if True: # Status
+                    response['status'] = 'success'
+                    response['message'] = 'Topic ' + topic_name + ' successfully created'
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                
+            else:
+                # only accept topic_name in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        # consumer register
+        elif self.path == "/consumer/register":
+            print("consumer register requested")
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            response = {}
+            json_is_valid = True
+            data_json = None
+            try:
+                data_json = json.loads(data)
+            except json.decoder.JSONDecodeError:
+                print('JSON decode failed')
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 1 and 'topic' in data_json:
+                topic = data_json['topic']
+
+                # generate consumer_id
+                # consumer_id = consumer_register(topic)
+                
+                consumer_id = 14328048
+                if consumer_id > 0: # Status
+                    response['status'] = 'success'
+                    response['consumer_id'] = consumer_id
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                    
+            else:
+                # only accept one topic in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        # producer register
+        elif self.path == "/producer/register":
+            print("producer register requested")
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            response = {}
+            json_is_valid = True
+            data_json = None
+            try:
+                data_json = json.loads(data)
+            except json.decoder.JSONDecodeError:
+                print('JSON decode failed')
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 1 and 'topic' in data_json:
+                topic = data_json['topic']
+
+                # generate producer_id
+                # producer_id = producer_register(topic)
+                
+                producer_id = 14328040
+                if producer_id > 0: # Status
+                    response['status'] = 'success'
+                    response['producer_id'] = producer_id
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                
+            else:
+                # only accept one topic in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        # enqueue
+        elif self.path == "/producer/produce":
+            print("produce requested")
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            response = {}
+            json_is_valid = True
+            data_json = None
+            try:
+                data_json = json.loads(data)
+            except json.decoder.JSONDecodeError:
+                print('JSON decode failed')
+                json_is_valid = False
+
+            if json_is_valid and len(data_json) == 3 and 'topic' in data_json \
+                                                     and 'producer_id' in data_json \
+                                                     and 'message' in data_json:
+                topic        =  data_json['topic']
+                producer_id  =  data_json['producer_id']
+                message      =  data_json['message']
+
+                # enqueue
+                # result = producer_enqueue(topic, producer_id, message)
+                
+                if True: # Status
+                    response['status'] = 'success'
+                else:
+                    response['status'] = 'failure'
+                    response['message'] = 'failure messasge'
+                
+            else:
+                # incorrect params in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
+                    
+            response = json.dumps(response)
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
+        else:
+            print("invalid path request")
+
+class MyServer:
+    def __init__(self):
+        print("Starting Server..")
+        server = HTTPServer(("127.0.0.1", 8002), MyServerHandler)
+        server.serve_forever()
+
+MyServer()
