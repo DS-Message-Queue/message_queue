@@ -1,9 +1,13 @@
-def raiseError(message:str,data = None):
+def raise_error(message:str,data = None):
+    dict1 = {"status" : 'failure',"message" : message}
     if data is None:
-        return {"status" : 'error',"message" : message}
-    return  {"status" : 'error',"message" : message,"data":data}
+        return dict1
+    dict1.update(data)
+    return dict1
 
-def raiseSuccess(message:str,data = None):
+def raise_success(message:str,data = None):
+    dict1 = {"status" : 'success',"message" : message}
     if data is None:
-        return {"status" : 'success',"message" : message}
-    return {"status" : 'success',"message" : message,"data":data}
+        return dict1
+    dict1.update(data)
+    return dict1
