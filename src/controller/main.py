@@ -1,4 +1,4 @@
-from src.controller.utils import raise_error, raise_success
+from controller.utils import raise_error, raise_success
 
 
 class Message_Queue:
