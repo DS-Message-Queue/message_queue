@@ -371,6 +371,7 @@ class MyServer:
     def __init__(self):
         print("Starting Server..")
         server = HTTPServer(("127.0.0.1", 8002), MyServerHandler)
+        print("Server is running on 127.0.0.1")
         server.serve_forever()
 
 MyServer()
