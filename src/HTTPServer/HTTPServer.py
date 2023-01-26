@@ -1,6 +1,9 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from src.controller.main import Message_Queue
 import json
 import re
+
+message_queue = Message_Queue()
 
 # returns None in case of error
 def extract_url_params(data):
@@ -39,7 +42,6 @@ def extract_url_params(data):
 
 class MyServerHandler(BaseHTTPRequestHandler):
     def __init__(self, *args):
-        
         # Connect to db server here and store necessary variables in self
         # Be aware that this gets called everytime an HTTP request is made
         # So maybe there is a better place for it
@@ -57,26 +59,26 @@ class MyServerHandler(BaseHTTPRequestHandler):
             response = {}
 
             # retrieve topics
-            # ret = get_topics()
-            topics = ['post_created', 'user_signup', 'user_login']
+            ret = message_queue.list_topics()
+            # topics = ['post_created', 'user_signup', 'user_login']
             
-            if True: # Status
-                response['status'] = 'success'
-                response['topics'] = topics
-                self.send_response(200)
+            # if True: # Status
+            #     response['status'] = 'success'
+            #     response['topics'] = topics
+            #     self.send_response(200)
 
                 # Make sure to remove above 4 lines because get_topics() should
                 # return the required response, so do this here instead:
-                # response.update(ret)
-                # if response['status'] == 'success':
-                #     self.send_response(200)
-                # else:
-                #     self.send_response(400)
-
+            response.update(ret)
+            if response['status'] == 'success':
+                self.send_response(200)
             else:
-                response['status'] = 'failure'
-                response['message'] = 'failure messasge'
                 self.send_response(400)
+
+            # else:
+            #     response['status'] = 'failure'
+            #     response['message'] = 'failure messasge'
+            #     self.send_response(400)
 
             response = json.dumps(response)
             self.send_header("Content-type", "application/json")
@@ -99,24 +101,24 @@ class MyServerHandler(BaseHTTPRequestHandler):
             if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
                                                      and 'consumer_id' in data_json:
                 topic        =  data_json['topic']
-                consumer_id  =  data_json['consumer_id']
+                consumer_id  =  int(data_json['consumer_id'])
 
                 # dequeue
-                # ret = consumer_dequeue(topic, consumer_id)
-                message = "test message"
+                ret = message_queue.consume_message(topic, consumer_id)
+                # message = "test message"
                 
-                if True: # Status
-                    response['status'] = 'success'
-                    response['message'] = message
-                    self.send_response(200)
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     response['message'] = message
+                #     self.send_response(200)
 
                 # Make sure to remove above 4 lines because consumer_dequeue() should
                 # return the required response, so do this here instead:
-                # response.update(ret)
-                # if response['status'] == 'success':
-                #     self.send_response(200)
-                # else:
-                #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                 
             else:
                 # incorrect params in data_json
@@ -143,24 +145,24 @@ class MyServerHandler(BaseHTTPRequestHandler):
             if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
                                                      and 'consumer_id' in data_json:
                 topic        =  data_json['topic']
-                consumer_id  =  data_json['consumer_id']
+                consumer_id  =  int(data_json['consumer_id'])
 
                 # size
-                # ret = consumer_queue_size(topic, consumer_id)
-                size = 12
+                ret = message_queue.log_size(topic,consumer_id)
+                # size = 12
                 
-                if True: # Status
-                    response['status'] = 'success'
-                    response['size'] = size
-                    self.send_response(200)
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     response['size'] = size
+                #     self.send_response(200)
 
                 # Make sure to remove above 4 lines because consumer_queue_size() should
                 # return the required response, so do this here instead:
-                # response.update(ret)
-                # if response['status'] == 'success':
-                #     self.send_response(200)
-                # else:
-                #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                 
             else:
                 # incorrect params in data_json
@@ -198,19 +200,21 @@ class MyServerHandler(BaseHTTPRequestHandler):
 
                 # create and store topic
                 # ret = create_topic(topic_name)
-                
-                if True: # Status
-                    response['status'] = 'success'
-                    response['message'] = 'Topic ' + topic_name + ' successfully created'
-                    self.send_response(200)
+                ret = message_queue.add_topic(topic_name)
+
+                # Commented as mentioned
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     response['message'] = 'Topic ' + topic_name + ' successfully created'
+                #     self.send_response(200)
 
                     # Make sure to remove above 4 lines because create_topic() should
                     # return the required response, so do this here instead:
-                    # response.update(ret)
-                    # if response['status'] == 'success':
-                    #     self.send_response(200)
-                    # else:
-                    #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                 
             else:
                 # only accept topic_name in data_json
@@ -242,21 +246,21 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 topic = data_json['topic']
 
                 # generate consumer_id
-                # ret = consumer_register(topic)
+                ret = message_queue.register_consumer(topic)
                 
-                consumer_id = 14328048
-                if True: # Status
-                    response['status'] = 'success'
-                    response['consumer_id'] = consumer_id
-                    self.send_response(200)
+                # consumer_id = 14328048
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     response['consumer_id'] = consumer_id
+                #     self.send_response(200)
 
                     # Make sure to remove above 4 lines because consumer_register() should
                     # return the required response, so do this here instead:
-                    # response.update(ret)
-                    # if response['status'] == 'success':
-                    #     self.send_response(200)
-                    # else:
-                    #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                     
             else:
                 # only accept one topic in data_json
@@ -288,21 +292,21 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 topic = data_json['topic']
 
                 # generate producer_id
-                # ret = producer_register(topic)
+                ret = message_queue.register_producer(topic)
                 
-                producer_id = 14328040
-                if True: # Status
-                    response['status'] = 'success'
-                    response['producer_id'] = producer_id
-                    self.send_response(200)
+                # producer_id = 14328040
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     response['producer_id'] = producer_id
+                #     self.send_response(200)
 
                     # Make sure to remove above 4 lines because producer_register() should
                     # return the required response, so do this here instead:
-                    # response.update(ret)
-                    # if response['status'] == 'success':
-                    #     self.send_response(200)
-                    # else:
-                    #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                 
             else:
                 # only accept one topic in data_json
@@ -338,19 +342,19 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 message      =  data_json['message']
 
                 # enqueue
-                # result = producer_enqueue(topic, producer_id, message)
+                ret = message_queue.publish_message(producer_id, topic, message)
                 
-                if True: # Status
-                    response['status'] = 'success'
-                    self.send_response(200)
+                # if True: # Status
+                #     response['status'] = 'success'
+                #     self.send_response(200)
 
                     # Make sure to remove above 3 lines because producer_enqueue() should
                     # return the required response, so do this here instead:
-                    # response.update(ret)
-                    # if response['status'] == 'success':
-                    #     self.send_response(200)
-                    # else:
-                    #     self.send_response(400)
+                response.update(ret)
+                if response['status'] == 'success':
+                    self.send_response(200)
+                else:
+                    self.send_response(400)
                 
             else:
                 # incorrect params in data_json
@@ -371,7 +375,5 @@ class MyServer:
     def __init__(self):
         print("Starting Server..")
         server = HTTPServer(("127.0.0.1", 8002), MyServerHandler)
-        print("Server is running on 127.0.0.1")
+        print("Server is running on 127.0.0.1:8002")
         server.serve_forever()
-
-MyServer()

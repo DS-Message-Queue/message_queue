@@ -1,4 +1,4 @@
-from controller.utils import raise_error, raise_success
+from src.controller.utils import raise_error, raise_success
 
 
 class Message_Queue:
@@ -133,14 +133,17 @@ class Message_Queue:
         return raise_success("Producer registered successfully.", {"producer_id": producer_id})
 
     # To register a consumer
-    def register_consumer(self):
+    def register_consumer(self, topic_name : str):
         """
         Creates a register in the system
         """
         # Generating unique Id for a consumer
+        if topic_name not in self.__topics:
+                return raise_success("Topic doesn't exist.")
         consumer_id = len(self.__consumers) + 1
         # Adding consumer to the producers dict
         self.__consumers[consumer_id] = {"topics": {}}
+        self.subscribe_to_topic(topic_name,consumer_id)
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
     # For consumer to subscribe to a topic
@@ -206,13 +209,13 @@ class Message_Queue:
             return raise_error("Consumer doesn't exist.")
         if topic_name not in self.__consumers[consumer_id]["topics"]:
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
-        if len(self.__topics[topic_name]["messages"]) <= 0 or self.__consumers[consumer_id]["topics"][topic_name]["position"] >= len(self.__topics[topic_name]["messages"]):
+        if len(self.__topics[topic_name]["messages"]) <= 0 or self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"] >= len(self.__topics[topic_name]["messages"]):
             return raise_error("No new message is published to " + topic_name + ".")
         message_position = self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"]
         self.__topics[topic_name]["messages"][message_position]["subscribers"] = self.__topics[
             topic_name]["messages"][message_position]["subscribers"] - 1
         message_to_send = self.__topics[topic_name]["messages"][message_position]
-        self.__consumers[consumer_id]["topics"][topic_name]["position"] = message_position + 1
+        self.__consumers[consumer_id]["topics"][topic_name]["position"] = self.__consumers[consumer_id]["topics"][topic_name]["position"] + 1
         if message_to_send["subscribers"] == 0:
             self.__topics[topic_name]["bias"] = self.__topics[topic_name]["bias"] + 1
             self.__topics[topic_name]["messages"].pop(0)
@@ -226,7 +229,15 @@ class Message_Queue:
         all_topics = list(self.__topics.keys())
         return raise_success("Successfully fetched topics.", {"topics": all_topics})
 
-    def log_size(self, topic_name: str):
+    def log_size(self, topic_name: str, consumer_id : int):
         if topic_name not in self.__topics:
             return raise_error("Topic " + topic_name + " doesn't exist.")
-        return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": len(self.__topics[topic_name]["messages"])})
+        if consumer_id not in self.__consumers:
+            return raise_error("Consumer doesn't exist.")
+        if topic_name not in self.__consumers[consumer_id]["topics"]:
+            return raise_error("Consumer is not subscribed to " + topic_name + ".")
+        print(self.__topics)
+        print(self.__consumers)
+        if len(self.__topics[topic_name]["messages"]) <= 0 or self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"] >= len(self.__topics[topic_name]["messages"]):
+            return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": 0 })
+        return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": len(self.__topics[topic_name]["messages"]) - self.__consumers[consumer_id]["topics"][topic_name]["position"] + self.__topics[topic_name]["bias"] })
