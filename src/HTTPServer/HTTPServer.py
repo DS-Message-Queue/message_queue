@@ -57,18 +57,28 @@ class MyServerHandler(BaseHTTPRequestHandler):
             response = {}
 
             # retrieve topics
-            # topics = get_topics()
+            # ret = get_topics()
             topics = ['post_created', 'user_signup', 'user_login']
             
             if True: # Status
                 response['status'] = 'success'
                 response['topics'] = topics
+                self.send_response(200)
+
+                # Make sure to remove above 4 lines because get_topics() should
+                # return the required response, so do this here instead:
+                # response.update(ret)
+                # if response['status'] == 'success':
+                #     self.send_response(200)
+                # else:
+                #     self.send_response(400)
+
             else:
                 response['status'] = 'failure'
                 response['message'] = 'failure messasge'
+                self.send_response(400)
 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -92,23 +102,29 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 consumer_id  =  data_json['consumer_id']
 
                 # dequeue
-                # message = consumer_dequeue(topic, consumer_id)
+                # ret = consumer_dequeue(topic, consumer_id)
                 message = "test message"
                 
-                if len(message) > 0: # Status
+                if True: # Status
                     response['status'] = 'success'
                     response['message'] = message
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                # Make sure to remove above 4 lines because consumer_dequeue() should
+                # return the required response, so do this here instead:
+                # response.update(ret)
+                # if response['status'] == 'success':
+                #     self.send_response(200)
+                # else:
+                #     self.send_response(400)
                 
             else:
                 # incorrect params in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -130,23 +146,29 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 consumer_id  =  data_json['consumer_id']
 
                 # size
-                # size = consumer_queue_size(topic, consumer_id)
+                # ret = consumer_queue_size(topic, consumer_id)
                 size = 12
                 
-                if size > 0: # Status
+                if True: # Status
                     response['status'] = 'success'
                     response['size'] = size
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                # Make sure to remove above 4 lines because consumer_queue_size() should
+                # return the required response, so do this here instead:
+                # response.update(ret)
+                # if response['status'] == 'success':
+                #     self.send_response(200)
+                # else:
+                #     self.send_response(400)
                 
             else:
                 # incorrect params in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -175,22 +197,28 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 topic_name = data_json['topic_name']
 
                 # create and store topic
-                # result = create_topic(topic_name)
+                # ret = create_topic(topic_name)
                 
                 if True: # Status
                     response['status'] = 'success'
                     response['message'] = 'Topic ' + topic_name + ' successfully created'
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                    # Make sure to remove above 4 lines because create_topic() should
+                    # return the required response, so do this here instead:
+                    # response.update(ret)
+                    # if response['status'] == 'success':
+                    #     self.send_response(200)
+                    # else:
+                    #     self.send_response(400)
                 
             else:
                 # only accept topic_name in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -214,23 +242,29 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 topic = data_json['topic']
 
                 # generate consumer_id
-                # consumer_id = consumer_register(topic)
+                # ret = consumer_register(topic)
                 
                 consumer_id = 14328048
-                if consumer_id > 0: # Status
+                if True: # Status
                     response['status'] = 'success'
                     response['consumer_id'] = consumer_id
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                    # Make sure to remove above 4 lines because consumer_register() should
+                    # return the required response, so do this here instead:
+                    # response.update(ret)
+                    # if response['status'] == 'success':
+                    #     self.send_response(200)
+                    # else:
+                    #     self.send_response(400)
                     
             else:
                 # only accept one topic in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -254,23 +288,29 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 topic = data_json['topic']
 
                 # generate producer_id
-                # producer_id = producer_register(topic)
+                # ret = producer_register(topic)
                 
                 producer_id = 14328040
-                if producer_id > 0: # Status
+                if True: # Status
                     response['status'] = 'success'
                     response['producer_id'] = producer_id
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                    # Make sure to remove above 4 lines because producer_register() should
+                    # return the required response, so do this here instead:
+                    # response.update(ret)
+                    # if response['status'] == 'success':
+                    #     self.send_response(200)
+                    # else:
+                    #     self.send_response(400)
                 
             else:
                 # only accept one topic in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                 
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
@@ -302,17 +342,23 @@ class MyServerHandler(BaseHTTPRequestHandler):
                 
                 if True: # Status
                     response['status'] = 'success'
-                else:
-                    response['status'] = 'failure'
-                    response['message'] = 'failure messasge'
+                    self.send_response(200)
+
+                    # Make sure to remove above 3 lines because producer_enqueue() should
+                    # return the required response, so do this here instead:
+                    # response.update(ret)
+                    # if response['status'] == 'success':
+                    #     self.send_response(200)
+                    # else:
+                    #     self.send_response(400)
                 
             else:
                 # incorrect params in data_json
                 response['status'] = 'failure'
                 response['message'] = 'invalid data in params'
+                self.send_response(400)
                     
             response = json.dumps(response)
-            self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("content-length", str(len(response)))
             self.end_headers()
