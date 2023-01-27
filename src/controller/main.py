@@ -1,6 +1,5 @@
 from src.controller.utils import raise_error, raise_success
-
-
+import threading
 class Message_Queue:
     """
     The class with functions to perform actions on the Message Queue.
@@ -60,6 +59,7 @@ class Message_Queue:
         self.__topics = {}
         self.__consumers = {}
         self.__producers = {}
+        self.__lock = threading.Lock()
 
     def init(self):
         """
@@ -75,8 +75,12 @@ class Message_Queue:
 
         1) If the topic already exists then throw an error.
         """
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         # Error handling
         if topic_name in self.__topics:
+            self.__lock.release()
             return raise_error("Topic " + topic_name + " already exists.")
 
         # Adding topic to the topics dict with no producers, no consumers and no messages.
@@ -86,6 +90,7 @@ class Message_Queue:
             "messages": [],
             "bias" : 0
         }
+        self.__lock.release()
         return raise_success("Topic " + topic_name + " added successfully.")
 
     # To push a message to the topic queue
@@ -99,14 +104,22 @@ class Message_Queue:
         2) If producer with producer_id doesn't exist then throw an error
         3) If producer hasn't registered to any topic or producer has nto registered to this topic then throw an error
         """
+
         # Error handling
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
+            self.__lock.release()
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if producer_id not in self.__producers:
+            self.__lock.release()
             return raise_error("Producer doesn't exist.")
         if "topic" not in self.__producers[producer_id] or self.__producers[producer_id]["topic"] != topic_name:
+            self.__lock.release()
             return raise_error("Producer cannot publish to " + topic_name + ".")
         if len(self.__topics[topic_name]["consumers"]) == 0:
+            self.__lock.release()
             return raise_error("No subscribers so cannot publish to the topic.")
 
         # What if there are no subscribers? Shall we even add the message to the topic?
@@ -116,6 +129,7 @@ class Message_Queue:
                 "message": message,
                 "subscribers": len(self.__topics[topic_name]["consumers"])
             })
+        self.__lock.release()
         return raise_success("Message " + message + " added successfully to " + topic_name + ".")
 
     # To register a producer
@@ -123,6 +137,9 @@ class Message_Queue:
         """
         Creates a producer in the system
         """
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         # Generating unique Id for a producer
         producer_id = len(self.__producers) + 1
         # Adding producer to the producers dict
@@ -130,6 +147,7 @@ class Message_Queue:
         if topic_name not in self.__topics:
             self.add_topic(topic_name)
         self.add_producer_to_topic(topic_name, producer_id)
+        self.__lock.release()
         return raise_success("Producer registered successfully.", {"producer_id": producer_id})
 
     # To register a consumer
@@ -137,13 +155,18 @@ class Message_Queue:
         """
         Creates a register in the system
         """
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         # Generating unique Id for a consumer
         if topic_name not in self.__topics:
+                self.__lock.release()
                 return raise_success("Topic doesn't exist.")
         consumer_id = len(self.__consumers) + 1
         # Adding consumer to the producers dict
         self.__consumers[consumer_id] = {"topics": {}}
         self.subscribe_to_topic(topic_name,consumer_id)
+        self.__lock.release()   
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
     # For consumer to subscribe to a topic
@@ -203,13 +226,20 @@ class Message_Queue:
         2) If the consumer with consumer_id doesn't exist then throw an error
         3) If the consumer is not a subscriber of that topic then throw an error
         """
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
+            self.__lock.release()
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if consumer_id not in self.__consumers:
+            self.__lock.release()
             return raise_error("Consumer doesn't exist.")
         if topic_name not in self.__consumers[consumer_id]["topics"]:
+            self.__lock.release()
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
         if len(self.__topics[topic_name]["messages"]) <= 0 or self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"] >= len(self.__topics[topic_name]["messages"]):
+            self.__lock.release()
             return raise_error("No new message is published to " + topic_name + ".")
         message_position = self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"]
         self.__topics[topic_name]["messages"][message_position]["subscribers"] = self.__topics[
@@ -221,23 +251,34 @@ class Message_Queue:
             self.__topics[topic_name]["messages"].pop(0)
             # for consumer in self.__topics[topic_name]["consumers"]:
             #     self.__consumers[consumer]["topics"][topic_name]["position"] = self.__consumers[consumer]["topics"][topic_name]["position"] - 1
+        self.__lock.release()
         return raise_success("Message fetched successfully.", {
             "message": message_to_send["message"]
         })
 
     def list_topics(self):
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         all_topics = list(self.__topics.keys())
+        self.__lock.release()
         return raise_success("Successfully fetched topics.", {"topics": all_topics})
 
     def log_size(self, topic_name: str, consumer_id : int):
+        isLockAvailable = self.__lock.acquire()
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
+            self.__lock.release()
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if consumer_id not in self.__consumers:
+            self.__lock.release()   
             return raise_error("Consumer doesn't exist.")
         if topic_name not in self.__consumers[consumer_id]["topics"]:
+            self.__lock.release()
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
-        print(self.__topics)
-        print(self.__consumers)
         if len(self.__topics[topic_name]["messages"]) <= 0 or self.__consumers[consumer_id]["topics"][topic_name]["position"] - self.__topics[topic_name]["bias"] >= len(self.__topics[topic_name]["messages"]):
+            self.__lock.release()
             return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": 0 })
+        self.__lock.release()
         return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": len(self.__topics[topic_name]["messages"]) - self.__consumers[consumer_id]["topics"][topic_name]["position"] + self.__topics[topic_name]["bias"] })
