@@ -1,5 +1,5 @@
 from src.controller.utils import raise_error, raise_success
-
+import src.Database.database as db
 
 class Message_Queue:
     """
@@ -16,7 +16,7 @@ class Message_Queue:
         'A' : { #'A' is the topic name.
             'producers' : [], #List of producersId which can publish to the topic.
             'consumers' : [], #List of consumersId which are subscribed to the topic.
-            'messages'  : [ #List of messages which are yet to be consumed by the consumers.
+            'messages'  : [   #List of messages which are yet to be consumed by the consumers.
                 {
                     'message'     : 'Some message', #The message
                     'subscribers' : 10 #The number of consumers that can consume this message.
@@ -41,7 +41,7 @@ class Message_Queue:
         }
     }
 
-    2. __producers
+    3. __producers
 
     A dict which stores all the producers that are registered in the system.
 
@@ -51,21 +51,30 @@ class Message_Queue:
             'topic' : 'A' #'A' is the topic to which the producer is subscribed to.
         }
     }
+    
+    4. __db
+    A database which contains the following schema
+    topic(topic_name, bias)
+    producer(p_id, topic_name)
+    consumer(c_id, topic_name, position)
+    message(message, topic_name, subscribers)
     """
 
     def __init__(self):
         """
         Constructor of the class.
         """
+        self.__db = db.databases()
         self.__topics = {}
         self.__consumers = {}
         self.__producers = {}
+        self.init_DB()
 
-    def init(self):
+    def init_DB(self):
         """
         This is used to initialize the class members from the persistent DB.
         """
-        return 0
+        self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(self.__topics, self.__producers, self.__consumers)
 
     def add_topic(self, topic_name: str):
         """
@@ -86,6 +95,7 @@ class Message_Queue:
             "messages": [],
             "bias" : 0
         }
+        self.__db.insert_topic(topic_name)
         return raise_success("Topic " + topic_name + " added successfully.")
 
     # To push a message to the topic queue
@@ -116,6 +126,8 @@ class Message_Queue:
                 "message": message,
                 "subscribers": len(self.__topics[topic_name]["consumers"])
             })
+
+        self.__db.insert_for_messages(topic_name, message, len(self.__topics[topic_name]["consumers"]))
         return raise_success("Message " + message + " added successfully to " + topic_name + ".")
 
     # To register a producer
@@ -130,6 +142,7 @@ class Message_Queue:
         if topic_name not in self.__topics:
             self.add_topic(topic_name)
         self.add_producer_to_topic(topic_name, producer_id)
+        self.__db.insert_for_producer(producer_id, topic_name)
         return raise_success("Producer registered successfully.", {"producer_id": producer_id})
 
     # To register a consumer
@@ -144,6 +157,7 @@ class Message_Queue:
         # Adding consumer to the producers dict
         self.__consumers[consumer_id] = {"topics": {}}
         self.subscribe_to_topic(topic_name,consumer_id)
+        self.__db.insert_for_consumer(consumer_id, topic_name)
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
     # For consumer to subscribe to a topic
@@ -203,6 +217,7 @@ class Message_Queue:
         2) If the consumer with consumer_id doesn't exist then throw an error
         3) If the consumer is not a subscriber of that topic then throw an error
         """
+        
         if topic_name not in self.__topics:
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if consumer_id not in self.__consumers:
@@ -215,10 +230,16 @@ class Message_Queue:
         self.__topics[topic_name]["messages"][message_position]["subscribers"] = self.__topics[
             topic_name]["messages"][message_position]["subscribers"] - 1
         message_to_send = self.__topics[topic_name]["messages"][message_position]
+        subscribers_to_send = self.__topics[topic_name]["messages"][message_position]["subscribers"]
+        
+        self.__db.update_for_message(self.__topics[topic_name]["messages"][message_position]["message"], subscribers_to_send)
         self.__consumers[consumer_id]["topics"][topic_name]["position"] = self.__consumers[consumer_id]["topics"][topic_name]["position"] + 1
+        self.__db.update_for_consumer(consumer_id, self.__consumers[consumer_id]["topics"][topic_name]["position"])
         if message_to_send["subscribers"] == 0:
             self.__topics[topic_name]["bias"] = self.__topics[topic_name]["bias"] + 1
+            self.__db.update_for_topic(topic_name, self.__topics[topic_name]["bias"])
             self.__topics[topic_name]["messages"].pop(0)
+            self.__db.delete_from_message(topic_name)
             # for consumer in self.__topics[topic_name]["consumers"]:
             #     self.__consumers[consumer]["topics"][topic_name]["position"] = self.__consumers[consumer]["topics"][topic_name]["position"] - 1
         return raise_success("Message fetched successfully.", {
