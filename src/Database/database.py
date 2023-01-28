@@ -172,21 +172,4 @@ class databases:
             self.conn.close()
 
 
-# d = databases()
 
-
-
-# d.insert_topic("Cricket", 0)
-# d.insert_topic("haiii", 0)
-# d.insert_for_producer( 123, "Cricket")
-# d.insert_for_consumer( 456, "Cricket", 0)
-# d.insert_for_messages( "Cricket", "SCORE - 123/10",5)
-# d.insert_for_messages( "Cricket", "SCORE - 123/9",5)
-# d.insert_for_messages( "haiii", "SCORE - 140/0",3)
-# d.update_for_topic("Cricket",1)
-# d.update_for_consumer(456, 2)
-# d.update_for_message("Cricket", 6)
-# print("Insertions done")
-# d.delete_from_message("haiii")
-
-# # conn.close()
