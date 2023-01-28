@@ -16,7 +16,7 @@ class Message_Queue:
         'A' : { #'A' is the topic name.
             'producers' : [], #List of producersId which can publish to the topic.
             'consumers' : [], #List of consumersId which are subscribed to the topic.
-            'messages'  : [] #List of messages which are yet to be consumed by the consumers.
+            'messages'  : [   #List of messages which are yet to be consumed by the consumers.
                 {
                     'message'     : 'Some message', #The message
                     'subscribers' : 10 #The number of consumers that can consume this message.
@@ -127,7 +127,6 @@ class Message_Queue:
                 "subscribers": len(self.__topics[topic_name]["consumers"])
             })
 
-        print(len(self.__topics[topic_name]["consumers"]))
         self.__db.insert_for_messages(topic_name, message, len(self.__topics[topic_name]["consumers"]))
         return raise_success("Message " + message + " added successfully to " + topic_name + ".")
 
@@ -218,9 +217,7 @@ class Message_Queue:
         2) If the consumer with consumer_id doesn't exist then throw an error
         3) If the consumer is not a subscriber of that topic then throw an error
         """
-        print(self.__topics)
-        print(self.__producers)
-        print(self.__consumers)
+        
         if topic_name not in self.__topics:
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if consumer_id not in self.__consumers:
@@ -234,7 +231,7 @@ class Message_Queue:
             topic_name]["messages"][message_position]["subscribers"] - 1
         message_to_send = self.__topics[topic_name]["messages"][message_position]
         subscribers_to_send = self.__topics[topic_name]["messages"][message_position]["subscribers"]
-        #print(type(self.__topics[topic_name]["messages"][message_position]["message"]))
+        
         self.__db.update_for_message(self.__topics[topic_name]["messages"][message_position]["message"], subscribers_to_send)
         self.__consumers[consumer_id]["topics"][topic_name]["position"] = self.__consumers[consumer_id]["topics"][topic_name]["position"] + 1
         self.__db.update_for_consumer(consumer_id, self.__consumers[consumer_id]["topics"][topic_name]["position"])

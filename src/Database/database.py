@@ -40,9 +40,6 @@ class databases:
         self.curr.execute("CREATE TABLE IF NOT EXISTS message(message varchar(255), topic_name VARCHAR(255), subscribers INT, FOREIGN KEY(topic_name) REFERENCES topic(topic_name))")
         self.conn.commit()
 
-        #print("Executed successfully")
-
-
     def insert_topic(self, topic_name, bias = 0):
         self.curr = self.conn.cursor()
 
@@ -162,7 +159,6 @@ class databases:
             if consumer[0] not in __consumers:
                 __consumers[consumer[0]] = topics_dict
 
-        print(__topics, __consumers, __producers)
         return __topics, __producers, __consumers
         
 
