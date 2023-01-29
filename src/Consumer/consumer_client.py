@@ -43,7 +43,7 @@ class myConsumer():
             
     
     def ListTopics(self):
-        '''Returns the list of all the topics available the the produces have created'''
+        '''Returns the list of all the topics available that the producers have created'''
         API_ENDPOINT = "/topics"
         url = HOST+PORT+API_ENDPOINT
         
@@ -106,7 +106,7 @@ class myConsumer():
         
         r = requests.get(url, params = payload)
         data = r.json()
-        
+
         tries = 30
         while tries:
             if r.status_code == 400 and "Lock cannot be acquired." in r.text:
