@@ -176,7 +176,7 @@ class Message_Queue:
         # Generating unique Id for a consumer
         if topic_name not in self.__topics:
                 self.__lock.release()
-                return raise_success("Topic doesn't exist.")
+                return raise_error("Topic doesn't exist.")
         consumer_id = len(self.__consumers) + 1
         # Adding consumer to the producers dict
         self.__consumers[consumer_id] = {"topics": {}}
