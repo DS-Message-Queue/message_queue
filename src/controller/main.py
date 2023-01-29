@@ -1,6 +1,7 @@
 from src.controller.utils import raise_error, raise_success
 import src.Database.database as db
 import threading
+
 class Message_Queue:
     """
     The class with functions to perform actions on the Message Queue.
@@ -85,7 +86,7 @@ class Message_Queue:
 
         1) If the topic already exists then throw an error.
         """
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         # Error handling
@@ -117,7 +118,7 @@ class Message_Queue:
         """
 
         # Error handling
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
@@ -150,7 +151,7 @@ class Message_Queue:
         """
         Creates a producer in the system
         """
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         # Generating unique Id for a producer
@@ -169,7 +170,7 @@ class Message_Queue:
         """
         Creates a register in the system
         """
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         # Generating unique Id for a consumer
@@ -241,7 +242,7 @@ class Message_Queue:
         2) If the consumer with consumer_id doesn't exist then throw an error
         3) If the consumer is not a subscriber of that topic then throw an error
         """
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
@@ -278,7 +279,7 @@ class Message_Queue:
         })
 
     def list_topics(self):
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         all_topics = list(self.__topics.keys())
@@ -286,7 +287,7 @@ class Message_Queue:
         return raise_success("Successfully fetched topics.", {"topics": all_topics})
 
     def log_size(self, topic_name: str, consumer_id : int):
-        isLockAvailable = self.__lock.acquire()
+        isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         if topic_name not in self.__topics:
