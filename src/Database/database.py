@@ -1,5 +1,6 @@
 import psycopg2
 
+
 class databases:
     
     def __init__(self):
@@ -79,7 +80,7 @@ class databases:
     def delete_from_message(self, message):
         #Deletion of Messages when there are no subscribers        
         self.curr = self.conn.cursor()
-        string = "DELETE FROM message where message = '" + message + "' ;"
+        string = "DELETE FROM message where subscribers = 0;"
         self.curr.execute(string)
         self.conn.commit()      
 
@@ -167,6 +168,13 @@ class databases:
             topics_dict = {'topics' : {consumer[1] : topic_dict}}
             if consumer[0] not in __consumers:
                 __consumers[consumer[0]] = topics_dict
+        
+        dictionary = {}
+        for i in reversed(__topics.keys()):
+            dictionary[i] = __topics[i]
+
+        
+        __topics = dictionary
         
         return __topics, __producers, __consumers
         
