@@ -269,8 +269,9 @@ class Message_Queue:
         if message_to_send["subscribers"] == 0:
             self.__topics[topic_name]["bias"] = self.__topics[topic_name]["bias"] + 1
             self.__db.update_for_topic(topic_name, self.__topics[topic_name]["bias"])
+            self.__db.delete_from_message(self.__topics[topic_name]["messages"][message_position]["message"])
             self.__topics[topic_name]["messages"].pop(0)
-            self.__db.delete_from_message(topic_name)
+            
             # for consumer in self.__topics[topic_name]["consumers"]:
             #     self.__consumers[consumer]["topics"][topic_name]["position"] = self.__consumers[consumer]["topics"][topic_name]["position"] - 1
         self.__lock.release()
