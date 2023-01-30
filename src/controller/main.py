@@ -1,6 +1,5 @@
 from src.controller.utils import raise_error, raise_success
 import src.Database.database as db
-import threadingimport src.Database.database as db
 import threading
 
 class Message_Queue:
