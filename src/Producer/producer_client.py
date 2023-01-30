@@ -76,8 +76,6 @@ class myProducer():
         API_ENDPOINT="/producer/produce"
         url=HOST+PORT+API_ENDPOINT
         #HTTP link is used to connect to the server
-        today=datetime.now()
-        p_message=str(today)+" "+p_message
         PARAMS={'topic':p_topic,'producer_id':p_id,'message':p_message}
         #The above 3 parameters indicated topicname,producer-id and log_message created by the producer.
 
