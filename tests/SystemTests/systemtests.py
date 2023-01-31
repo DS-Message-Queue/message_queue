@@ -13,21 +13,29 @@ def clear_database():
         return False
     return True
 
-def produce(p, index, filename):
+def produce(p, statusList, index, filename):
     f = open(filename, "r")
     for message in f:
-        topic = re.findall('T-\d', message)[0]
-        p[index].Enqueue(topic, message)
-        time.sleep(0.5)
+        topic = re.findall('T-\d', message)
+        if len(topic):
+            p[index].Enqueue(topic[0], message)
+            time.sleep(0.5)
+    statusList[index] = True
     f.close()
 
-def consume(c, c_t, index):
-    while True:
+def consume(c, c_t,statusList, index,filename):
+    f = open(filename, "r+")
+    f.truncate()
+    while False in statusList:
         try:
             for topic in c_t[index]:
-                print(c[index].Dequeue(topic))
+                text = c[index].Dequeue(topic)
+                print(text)
+                f.write(text)
         except:
             pass
+    f.close()
+
 
 # tests
 def system_test_1():
@@ -36,8 +44,10 @@ def system_test_1():
         return
     
     p:list[MyProducer] = []  
+    statusList : list[bool] = []
     for i in range(5):
         p.append(MyProducer())
+        statusList.append(False)
     c:list[MyConsumer] = []
     for i in range(3):
         c.append(MyConsumer())
@@ -75,12 +85,12 @@ def system_test_1():
 
     threads = []
     for i in range(5):
-        t = threading.Thread(target = produce, args = (p, i, os.getcwd() + '/tests/SystemTests/producer_' + str(i + 1) + '.txt'))
+        t = threading.Thread(target = produce, args = (p, statusList, i, os.getcwd() + '/tests/SystemTests/producer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 
     for i in range(3):
-        t = threading.Thread(target = consume, args = (c, c_t, i))
+        t = threading.Thread(target = consume, args = (c, c_t, statusList, i,os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 
