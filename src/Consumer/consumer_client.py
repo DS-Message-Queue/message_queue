@@ -3,20 +3,21 @@ import requests
 HOST = "http://127.0.0.1:"
 PORT = "8002"
 
-class myConsumerError(Exception):
+class MyConsumerError(Exception):
     '''Error in consumer'''
 
-class myConsumer():
-    
+class MyConsumer():
 
     def __init__(self, consumerId = None):
         #if the consumerId is already known, the consumer can directly access the topics and logs
-        self.consumerId = consumerId
+        self.__topics = {}
         
-
     def RegisterConsumer(self, topic):
         '''Registers the consumer to a topic and assign the topic specific consuerId
             Inorder to subscribe to multiple topics call this function multiple times'''
+        if topic in self.__topics:
+            raise MyConsumerError('Already registered for this topic.')
+        
         API_ENDPOINT = "/consumer/register"
         url = HOST+PORT+API_ENDPOINT
         payload = {"topic" : topic}
@@ -33,16 +34,14 @@ class myConsumer():
                 break
             tries -= 1
         else:
-            raise myConsumerError('Server is busy, please try again after a while.')
+            raise MyConsumerError('Server is busy, please try again after a while.')
         if r.status_code == 200:
-            self.consumerId = data['consumer_id']                #assign the consumerId returned by the server
-            return self.consumerId
-        if r.status_code == 400:
-            raise myConsumerError(data['message'])
+            # store the consumerId returned by the server
+            self.__topics[topic] = data['consumer_id']  
+        elif r.status_code == 400:
+            raise MyConsumerError(data['message'])
         
-            
-    
-    def ListTopics(self):
+    def ListTopics(self) -> list:
         '''Returns the list of all the topics available that the producers have created'''
         API_ENDPOINT = "/topics"
         url = HOST+PORT+API_ENDPOINT
@@ -59,20 +58,24 @@ class myConsumer():
                 break
             tries -= 1
         else:
-            raise myConsumerError('Server is busy, please try again after a while.')
+            raise MyConsumerError('Server is busy, please try again after a while.')
 
         if r.status_code == 200:
             topicsList = data['topics']
-            return topicsList
+            return list(topicsList)
         if r.status_code == 400:
-            raise myConsumerError(data['message'])
+            raise MyConsumerError(data['message'])
             
-    def Dequeue(self, topic, consumerId):
-        '''Returns the log message that is dequed form the requested topic log queue'''
-        self.consumerId = consumerId
+    def Dequeue(self, topic) -> str:
+        '''Returns the log message that is dequed from the requested topic log queue'''
+        if topic not in self.__topics:
+            raise MyConsumerError('Not subscribed to topic' + topic + '.')
+        
+        consumer_id = self.__topics[topic]
+
         API_ENDPOINT = "/consumer/consume"
         url = HOST+PORT+API_ENDPOINT
-        payload = {'topic': topic, 'consumer_id' : self.consumerId}
+        payload = {'topic': topic, 'consumer_id' : consumer_id}
         
         r = requests.get(url, params = payload)
         data = r.json()
@@ -86,23 +89,24 @@ class myConsumer():
                 break
             tries -= 1
         else:
-            raise myConsumerError('Server is busy, please try again after a while.')
+            raise MyConsumerError('Server is busy, please try again after a while.')
             
         if r.status_code == 200:
             return data['message']
         if r.status_code == 400:
-            raise myConsumerError(data['message'])
-                
-            
+            raise MyConsumerError(data['message'])
 
-    def Size(self, topic, consumerId):
+    def Size(self, topic) -> int:
         '''Returns the size of log queue for the requested topic'''
-        self.consumerId = consumerId
+        if topic not in self.__topics:
+            raise MyConsumerError('Not subscribed to topic' + topic + '.')
+        
+        consumer_id = self.__topics[topic]
+
         API_ENDPOINT = "/size"
         url = HOST+PORT+API_ENDPOINT
         
-        payload = {'topic': topic, 'consumer_id' : self.consumerId}
-
+        payload = {'topic': topic, 'consumer_id' : consumer_id}
         
         r = requests.get(url, params = payload)
         data = r.json()
@@ -115,15 +119,8 @@ class myConsumer():
                 break
             tries -= 1
         else:
-            raise myConsumerError('Server is busy, please try again after a while.')
+            raise MyConsumerError('Server is busy, please try again after a while.')
         if r.status_code == 200:
-            return data['size']
+            return int(data['size'])
         if r.status_code == 400:
-            raise myConsumerError(data['message'])
-
-
-# consumer = myConsumer()
-# #print(consumer.RegisterConsumer('example_topic'))
-# #print(consumer.ListTopics())
-# #print(consumer.Size('example_topic', 7))
-# print(consumer.Dequeue('example_topic', 7))
+            raise MyConsumerError(data['message'])
