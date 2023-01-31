@@ -78,6 +78,12 @@ class Message_Queue:
         """
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(self.__topics, self.__producers, self.__consumers)
 
+    def clear_database(self):
+        self.__db.clear_database()
+        self.__topics.clear()
+        self.__producers.clear()
+        self.__consumers.clear()
+
     def add_topic(self, topic_name: str):
         """
         Pushes a topic to the __topics member of the class.\n
@@ -150,15 +156,13 @@ class Message_Queue:
         """
         Creates a producer in the system
         """
-        isLockAvailable = self.__lock.acquire(blocking=False)
-        if isLockAvailable is False:
-            return raise_error("Lock cannot be acquired.")
         # Generating unique Id for a producer
         producer_id = len(self.__producers) + 1
         # Adding producer to the producers dict
         self.__producers[producer_id] = {}
         if topic_name not in self.__topics:
             self.add_topic(topic_name)
+        self.__lock.acquire()
         self.add_producer_to_topic(topic_name, producer_id)
         self.__db.insert_for_producer(producer_id, topic_name)
         self.__lock.release()

@@ -7,6 +7,7 @@ class databases:
         #Initializing Database Connections
 
         self.conn = self.get_connection()
+
         if self.conn:
             print("Connection to the PostgreSQL established successfully.")
         else:
@@ -27,6 +28,11 @@ class databases:
             )
         except:
             return False
+
+    def clear_database(self):
+        self.curr = self.conn.cursor()
+        self.curr.execute("truncate table topic, consumer, producer, message;")
+        self.conn.commit()
 
     def create_tables(self, conn):
         # Creating Tables topic, consumer, producer, message
