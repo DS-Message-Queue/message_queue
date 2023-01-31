@@ -176,6 +176,25 @@ class MyServerHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(bytes(response, "utf-8"))
 
+        elif re.match('^/cleardb', self.path) != None:
+            print('clear requested')
+            params = extract_url_params(self.path[9:])
+            print('params =', params)
+            response = {}
+            if 'code' in params and params['code'] == 'xBjfq12nh':
+                message_queue.clear_database()
+                response['status'] = 'success'
+                self.send_response(200)
+            else:
+                response['status'] = 'failure'
+                self.send_response(400)
+            
+            response = json.dumps(response)
+            self.send_header("Content-type", "application/json")
+            self.send_header("content-length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(bytes(response, "utf-8"))
+
         else:
             print("invalid path request")
 
@@ -374,6 +393,9 @@ class MyServerHandler(BaseHTTPRequestHandler):
 class MyServer:
     def __init__(self):
         print("Starting Server..")
-        server = HTTPServer(("127.0.0.1", 8002), MyServerHandler)
+        self.server = HTTPServer(("127.0.0.1", 8002), MyServerHandler)
         print("Server is running on 127.0.0.1:8002")
-        server.serve_forever()
+        self.server.serve_forever()
+
+    def terminate_server(self):
+        self.server.shutdown()
