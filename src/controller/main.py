@@ -134,7 +134,6 @@ class Message_Queue:
             self.__lock.release()
             return raise_error("No subscribers so cannot publish to the topic.")
 
-        # What if there are no subscribers? Shall we even add the message to the topic?
         # Adding the message to the topic queue if there are subscribers otherwise not.
         if len(self.__topics[topic_name]["consumers"]) > 0:
             self.__topics[topic_name]["messages"].append({
@@ -168,7 +167,7 @@ class Message_Queue:
     # To register a consumer
     def register_consumer(self, topic_name : str):
         """
-        Creates a register in the system
+        Creates a consumer in the system
         """
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
@@ -271,9 +270,6 @@ class Message_Queue:
             self.__db.update_for_topic(topic_name, self.__topics[topic_name]["bias"])
             self.__db.delete_from_message(self.__topics[topic_name]["messages"][message_position]["message"])
             self.__topics[topic_name]["messages"].pop(0)
-            
-            # for consumer in self.__topics[topic_name]["consumers"]:
-            #     self.__consumers[consumer]["topics"][topic_name]["position"] = self.__consumers[consumer]["topics"][topic_name]["position"] - 1
         self.__lock.release()
         return raise_success("Message fetched successfully.", {
             "message": message_to_send["message"]
@@ -295,7 +291,7 @@ class Message_Queue:
             self.__lock.release()
             return raise_error("Topic " + topic_name + " doesn't exist.")
         if consumer_id not in self.__consumers:
-            self.__lock.release()   
+            self.__lock.release()
             return raise_error("Consumer doesn't exist.")
         if topic_name not in self.__consumers[consumer_id]["topics"]:
             self.__lock.release()
