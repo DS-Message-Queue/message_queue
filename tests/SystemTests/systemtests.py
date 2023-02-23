@@ -1,6 +1,5 @@
 from src.Consumer.consumer_client import MyConsumer, MyConsumerError
 from src.Producer.producer_client import MyProducer, MyProducerError
-from src.Database.database import databases
 import time
 import threading
 import re
@@ -20,8 +19,7 @@ def start_server():
     # subprocess.run("python3 main.py", shell=True, check=False)
     # The os.setsid() is passed in the argument preexec_fn so
     # it's run after the fork() and before  exec() to run the shell.
-    pro = subprocess.Popen('python3 main.py', stdout=subprocess.PIPE, 
-                        shell=True, preexec_fn=os.setsid)
+    pro = subprocess.Popen('python3 main.py', shell=True, preexec_fn=os.setsid)
 
     return os.getpgid(pro.pid)
 
@@ -34,9 +32,9 @@ def produce(p, statusList, index, filename):
         while True:
             try:
                 topic = re.findall('T-\d', message)
-                if len(topic):
+                if len(topic) > 0:
                     p[index].Enqueue(topic[0], message)
-                    time.sleep(0.5)
+                    time.sleep(0.02)
                 break
             except MyProducerError as e:
                 pass
@@ -53,21 +51,27 @@ def consume(c, c_t,statusList, index,filename):
     f = open(filename, "w")
     while False in done_consuming.values():
         for topic in c_t[index]:
-            try:
-                text = c[index].Dequeue(topic)
-                print(text)
-                f.write(text)
-            except MyConsumerError as e:
-                if not (False in statusList):
-                    if 'No new message is published to' in str(e):
-                        done_consuming[topic] = True
+            while True:
+                try:
+                    text = c[index].Dequeue(topic)
+                    #print(text)
+                    time.sleep(0.02)
+                    f.write(text)
+                    break
+                except MyConsumerError as e:
+                    if not (False in statusList):
+                        if 'No new message is published to' in str(e):
+                            done_consuming[topic] = True
+                        break
+                except:
+                    print('Connection Error, retrying...')
     f.close()
 
 # tests
 def system_test_1():
-    gid = start_server()
+    print('system test 1 executing...')
 
-    # wait for the server to start
+    gid = start_server()
     time.sleep(1)
 
     if not clear_database():
@@ -112,14 +116,24 @@ def system_test_1():
     c[2].RegisterConsumer('T-1')
     c[2].RegisterConsumer('T-3')
 
-    # prducers produce
+    print('******************')
+    print('Starting Producers')
+    print('******************')
 
     threads = []
+    # prducers produce
     for i in range(5):
         t = threading.Thread(target = produce, args = (p, statusList, i, os.getcwd() + '/tests/SystemTests/producer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 
+    print('******************')
+    print('Starting Consumers')
+    print('******************')
+
+    time.sleep(3)
+
+    # consumers consume
     for i in range(3):
         t = threading.Thread(target = consume, args = (c, c_t, statusList, i,os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
         t.start()
@@ -136,6 +150,7 @@ def system_test_1():
     # recover
     gid = start_server()
     f.write('server recovered\n')
+    f.close()
 
     for t in threads:
         t.join()
@@ -164,6 +179,9 @@ def system_test_2():
         message = c.Dequeue('DS')
     
         assert(message == 'message 1')
+    
+    except AssertionError:
+        print('system_test_2 failed: received messages not matching sent messages')
     
     except Exception as e:
         print('system_test_2 failed:', e)
