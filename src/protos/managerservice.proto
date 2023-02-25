@@ -6,6 +6,9 @@ service ManagerService{
 
  rpc RegisterBroker(BrokerDetails) returns (Status) {}
  rpc HealthCheck(HeartBeat) returns (HeartBeat) {}
+ rpc RegisterReplica(ReplicaDetails) returns (stream Query) {}
+ rpc PushUpdates(stream Query) returns (Response) {}
+ rpc GetUpdates(Request) returns (stream Query) {}
 
 }
 
@@ -15,8 +18,18 @@ message BrokerDetails{
  string token = 3;  // authentication
 }
 
+message Query{
+    string query = 1;
+}
+
+message ReplicaDetails{
+    string token = 1;
+}
+
 message Status{
  bool status = 1;
 }
 
+message Request{}
+message Response{}
 message HeartBeat{}

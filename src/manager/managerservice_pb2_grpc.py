@@ -24,6 +24,21 @@ class ManagerServiceStub(object):
                 request_serializer=managerservice__pb2.HeartBeat.SerializeToString,
                 response_deserializer=managerservice__pb2.HeartBeat.FromString,
                 )
+        self.RegisterReplica = channel.unary_stream(
+                '/managerservice.ManagerService/RegisterReplica',
+                request_serializer=managerservice__pb2.ReplicaDetails.SerializeToString,
+                response_deserializer=managerservice__pb2.Query.FromString,
+                )
+        self.PushUpdates = channel.stream_unary(
+                '/managerservice.ManagerService/PushUpdates',
+                request_serializer=managerservice__pb2.Query.SerializeToString,
+                response_deserializer=managerservice__pb2.Response.FromString,
+                )
+        self.GetUpdates = channel.unary_stream(
+                '/managerservice.ManagerService/GetUpdates',
+                request_serializer=managerservice__pb2.Request.SerializeToString,
+                response_deserializer=managerservice__pb2.Query.FromString,
+                )
 
 
 class ManagerServiceServicer(object):
@@ -41,6 +56,24 @@ class ManagerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RegisterReplica(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PushUpdates(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetUpdates(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ManagerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -53,6 +86,21 @@ def add_ManagerServiceServicer_to_server(servicer, server):
                     servicer.HealthCheck,
                     request_deserializer=managerservice__pb2.HeartBeat.FromString,
                     response_serializer=managerservice__pb2.HeartBeat.SerializeToString,
+            ),
+            'RegisterReplica': grpc.unary_stream_rpc_method_handler(
+                    servicer.RegisterReplica,
+                    request_deserializer=managerservice__pb2.ReplicaDetails.FromString,
+                    response_serializer=managerservice__pb2.Query.SerializeToString,
+            ),
+            'PushUpdates': grpc.stream_unary_rpc_method_handler(
+                    servicer.PushUpdates,
+                    request_deserializer=managerservice__pb2.Query.FromString,
+                    response_serializer=managerservice__pb2.Response.SerializeToString,
+            ),
+            'GetUpdates': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetUpdates,
+                    request_deserializer=managerservice__pb2.Request.FromString,
+                    response_serializer=managerservice__pb2.Query.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -95,5 +143,56 @@ class ManagerService(object):
         return grpc.experimental.unary_unary(request, target, '/managerservice.ManagerService/HealthCheck',
             managerservice__pb2.HeartBeat.SerializeToString,
             managerservice__pb2.HeartBeat.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RegisterReplica(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/managerservice.ManagerService/RegisterReplica',
+            managerservice__pb2.ReplicaDetails.SerializeToString,
+            managerservice__pb2.Query.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PushUpdates(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_unary(request_iterator, target, '/managerservice.ManagerService/PushUpdates',
+            managerservice__pb2.Query.SerializeToString,
+            managerservice__pb2.Response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetUpdates(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/managerservice.ManagerService/GetUpdates',
+            managerservice__pb2.Request.SerializeToString,
+            managerservice__pb2.Query.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
