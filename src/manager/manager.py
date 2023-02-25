@@ -68,6 +68,22 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     
     def HealthCheck(self, heartbeat, context):
         return heartbeat
+    
+    def RegisterReplica(self, replica_details, context):
+        print('replica token:', replica_details.token)
+        queries = ['insert', 'update', 'delete']
+        for q in queries:
+            yield pb2.Query(query=q)
+            
+    def PushUpdates(self, query_iter, context):
+        for q in query_iter:
+            print(q.query)
+        return pb2.Response()
+    
+    def GetUpdates(seld, request, context):
+        queries = ['insert', 'update', 'delete']
+        for q in queries:
+            yield pb2.Query(query=q)
 
 
 class Manager:
@@ -78,6 +94,7 @@ class Manager:
 
         while (len(brokers_connected) == 0):
             pass
+        time.sleep(1)
 
         # At least 1 broker is now connected
         
