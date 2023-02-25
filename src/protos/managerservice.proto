@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package managerservice;
+
+service ManagerService{
+
+ rpc RegisterBroker(BrokerDetails) returns (Status) {}
+ rpc HealthCheck(HeartBeat) returns (HeartBeat) {}
+
+}
+
+message BrokerDetails{
+ string host = 1;
+ string port = 2;
+ string token = 3;  // authentication
+}
+
+message Status{
+ bool status = 1;
+}
+
+message HeartBeat{}
