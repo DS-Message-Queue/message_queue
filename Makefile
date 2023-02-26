@@ -1,8 +1,2 @@
-copy_protos: genereate_protos
-	cp ./src/protos/*.py ./src/broker/
-	cp ./src/protos/*.py ./src/manager/
-	cp ./src/protos/*.py ./src/manager-replica/
-
 genereate_protos:
-	python3 -m grpc_tools.protoc -I./src/protos/ --python_out=./src/protos/ --grpc_python_out=./src/protos/ ./src/protos/managerservice.proto
-	python3 -m grpc_tools.protoc -I./src/protos/ --python_out=./src/protos/ --grpc_python_out=./src/protos/ ./src/protos/brokerservice.proto
+	python3 -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. ./src/protos/*.proto

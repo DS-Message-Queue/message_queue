@@ -24,6 +24,11 @@ class BrokerServiceStub(object):
                 request_serializer=brokerservice__pb2.Request.SerializeToString,
                 response_deserializer=brokerservice__pb2.Queries.FromString,
                 )
+        self.ResetBroker = channel.unary_unary(
+                '/brokerservice.BrokerService/ResetBroker',
+                request_serializer=brokerservice__pb2.BrokerDetails.SerializeToString,
+                response_deserializer=brokerservice__pb2.Status.FromString,
+                )
 
 
 class BrokerServiceServicer(object):
@@ -41,6 +46,12 @@ class BrokerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ResetBroker(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_BrokerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -53,6 +64,11 @@ def add_BrokerServiceServicer_to_server(servicer, server):
                     servicer.GetUpdates,
                     request_deserializer=brokerservice__pb2.Request.FromString,
                     response_serializer=brokerservice__pb2.Queries.SerializeToString,
+            ),
+            'ResetBroker': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResetBroker,
+                    request_deserializer=brokerservice__pb2.BrokerDetails.FromString,
+                    response_serializer=brokerservice__pb2.Status.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -95,5 +111,22 @@ class BrokerService(object):
         return grpc.experimental.unary_unary(request, target, '/brokerservice.BrokerService/GetUpdates',
             brokerservice__pb2.Request.SerializeToString,
             brokerservice__pb2.Queries.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ResetBroker(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/brokerservice.BrokerService/ResetBroker',
+            brokerservice__pb2.BrokerDetails.SerializeToString,
+            brokerservice__pb2.Status.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
