@@ -9,6 +9,7 @@ service ManagerService{
  rpc RegisterReplica(ReplicaDetails) returns (stream Query) {}
  rpc PushUpdates(stream Query) returns (Response) {}
  rpc GetUpdates(Request) returns (stream Query) {}
+ rpc SendTransaction(Transaction) returns (TransactionResponse) {}
 
 }
 
@@ -29,6 +30,15 @@ message ReplicaDetails{
 message Status{
  bool status = 1;
  int32 brokerId = 2;
+}
+
+message Transaction{
+ bytes data = 1;  // dict transaction: 
+                  // {'req': 'Enqueue', 'pid': 12, 'topic': 'foo', 'partition': 'B', 'message': 'test'}
+}
+
+message TransactionResponse{
+ bytes data = 1;  // dict response
 }
 
 message Request{}
