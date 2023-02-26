@@ -9,6 +9,7 @@ import src.protos.brokerservice_pb2_grpc as b_pb2_grpc
 import src.protos.brokerservice_pb2 as b_pb2
 import multiprocessing
 
+
 class ManagerConnection:
     """
     Client for gRPC functionality
@@ -91,19 +92,20 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         return b_pb2.Status()
 
     def GetUpdates(self, request, context):
+        # Send data from here to Manager
         return b_pb2.Queries(
-            queries = ['insert', 'delete', 'update']
+            queries=['insert', 'delete', 'update']
         )
-    
+
     def SendTransaction(self, transaction_req, context):
         transaction = json.loads(transaction_req.data)
-        
-        #process the transaction
+
+        # process the transaction
         self.process_transaction(transaction)
-        
+
         response = {'status': 'success', 'message': 'successfully added!'}
-        return b_pb2.Response(data = bytes(json.dumps(response).encode('utf-8')))
-    
+        return b_pb2.Response(data=bytes(json.dumps(response).encode('utf-8')))
+
     def process_transaction(self, transaction):
         print(transaction)
 
