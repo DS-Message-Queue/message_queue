@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13\x62rokerservice.proto\x12\rbrokerservice\"\x18\n\x08Response\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\x1b\n\x0bTransaction\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\t\n\x07Request\"\x1a\n\x07Queries\x12\x0f\n\x07queries\x18\x01 \x03(\t2\x99\x01\n\rBrokerService\x12H\n\x0fSendTransaction\x12\x1a.brokerservice.Transaction\x1a\x17.brokerservice.Response\"\x00\x12>\n\nGetUpdates\x12\x16.brokerservice.Request\x1a\x16.brokerservice.Queries\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13\x62rokerservice.proto\x12\rbrokerservice\"\x18\n\x08Response\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\x1b\n\x0bTransaction\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\t\n\x07Request\"\x08\n\x06Status\"\x1a\n\x07Queries\x12\x0f\n\x07queries\x18\x01 \x03(\t\"!\n\rBrokerDetails\x12\x10\n\x08\x62rokerId\x18\x01 \x01(\x05\x32\xdf\x01\n\rBrokerService\x12H\n\x0fSendTransaction\x12\x1a.brokerservice.Transaction\x1a\x17.brokerservice.Response\"\x00\x12>\n\nGetUpdates\x12\x16.brokerservice.Request\x1a\x16.brokerservice.Queries\"\x00\x12\x44\n\x0bResetBroker\x12\x1c.brokerservice.BrokerDetails\x1a\x15.brokerservice.Status\"\x00\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'brokerservice_pb2', globals())
@@ -26,8 +26,12 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _TRANSACTION._serialized_end=91
   _REQUEST._serialized_start=93
   _REQUEST._serialized_end=102
-  _QUERIES._serialized_start=104
-  _QUERIES._serialized_end=130
-  _BROKERSERVICE._serialized_start=133
-  _BROKERSERVICE._serialized_end=286
+  _STATUS._serialized_start=104
+  _STATUS._serialized_end=112
+  _QUERIES._serialized_start=114
+  _QUERIES._serialized_end=140
+  _BROKERDETAILS._serialized_start=142
+  _BROKERDETAILS._serialized_end=175
+  _BROKERSERVICE._serialized_start=178
+  _BROKERSERVICE._serialized_end=401
 # @@protoc_insertion_point(module_scope)

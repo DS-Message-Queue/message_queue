@@ -1,15 +1,52 @@
 from flask import Flask, request
 from src.controller.main import Message_Queue
+import src.protos.managerservice_pb2_grpc as pb2_grpc
+import src.protos.managerservice_pb2 as pb2
+import src.protos.brokerservice_pb2_grpc as b_pb2_grpc
+import src.protos.brokerservice_pb2 as b_pb2
+import grpc
 import json
 import re
 
 message_queue = Message_Queue()
+
+class BrokerConnection:
+    """
+    Client for gRPC functionality
+    """
+
+    def __init__(self, host, port):
+
+        # instantiate a channel
+        self.channel = grpc.insecure_channel(
+            '{}:{}'.format(host, port))
+
+        # bind the client and the server
+        self.stub = b_pb2_grpc.BrokerServiceStub(self.channel)
+    
+    def get_updates(self):
+        Queries = self.stub.GetUpdates(b_pb2.Request())
+        for q in Queries.queries:
+            print(q)
+        #return Queries.queries
+
+    def send_transaction(self, transaction):
+        Response = self.stub.SendTransaction(b_pb2.Transaction(
+            data = bytes(json.dumps(transaction).encode('utf-8'))
+        ))
+        response = json.loads(Response.data)
+        print(response)
+        #return response
+
 
 class MyServerHandler:
     def __init__(self, name):
         # Connect to db server here and store necessary variables in self
         # Be aware that this gets called everytime an HTTP request is made
         # So maybe there is a better place for it
+
+        self.brokers_connected = []
+        self.brokers = {}
 
         self.app = Flask(name)
         
@@ -45,6 +82,10 @@ class MyServerHandler:
         def __enqueue():
             return self.enqueue()
         
+        @self.app.route('/broker')
+        def __connect_to_broker():
+            return self.connect_to_broker()
+        
     def run(self, host, port):
         self.app.run(host=host, port=port)
         # from waitress import serve
@@ -53,6 +94,39 @@ class MyServerHandler:
     # def __del__(self):
     #    # close connection to db here
 
+    def connect_to_broker(self):
+        print("broker connection requested")
+        json_is_valid = True
+        data_json = dict(request.args)
+        response = {}
+        status = 400
+        if len(data_json) == 0:
+            print('invalid data in params')
+            response['status'] = 'failure'
+            response['brokerId'] = 0
+            json_is_valid = False
+
+        if json_is_valid and len(data_json) == 2 and 'host' in data_json \
+                                                 and 'port' in data_json:
+            host  =  data_json['host']
+            port  =  int(data_json['port'])
+
+            broker = 1 + len(self.brokers_connected)
+
+            # store the connection in the broker
+            self.brokers[broker] = BrokerConnection(host, port)
+            
+            # broker in now connected
+            self.brokers_connected.append(broker)
+
+            print('broker ' + str(broker) + ' connected.')
+
+            status = 200
+            response['status'] = 'Success'
+            response['brokerId'] = broker
+        
+        response = json.dumps(response)
+        return response, status
     
     def get_topics(self):
         # ListTopics
@@ -65,6 +139,16 @@ class MyServerHandler:
         ret = message_queue.list_topics()
         
         response.update(ret)
+
+        #------------------------------------------------------------------
+        # Example usage
+        
+        # self.brokers[1].get_updates()
+
+        # transaction = {'req': 'Enqueue', 'pid': 12, 'topic': 'foo', 'partition': 'B', 'message': 'test'}
+        # self.brokers[1].send_transaction(transaction)
+
+        #------------------------------------------------------------------
 
         status = 400
         if response['status'] == 'success':
