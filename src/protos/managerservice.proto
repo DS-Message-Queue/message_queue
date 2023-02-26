@@ -6,8 +6,7 @@ service ManagerService{
 
  rpc RegisterBroker(BrokerDetails) returns (Status) {}
  rpc HealthCheck(HeartBeat) returns (HeartBeat) {}
- rpc RegisterReplica(ReplicaDetails) returns (stream Query) {}
- rpc PushUpdates(stream Query) returns (Response) {}
+ rpc RegisterReplica(ReplicaDetails) returns (Response) {}
  rpc GetUpdates(Request) returns (stream Query) {}
  rpc SendTransaction(Transaction) returns (TransactionResponse) {}
 
@@ -42,5 +41,8 @@ message TransactionResponse{
 }
 
 message Request{}
-message Response{}
+message Response{
+ bool status = 1;
+ int32 replicaId = 2;
+}
 message HeartBeat{}

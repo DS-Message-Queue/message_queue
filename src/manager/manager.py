@@ -67,10 +67,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         return heartbeat
     
     def RegisterReplica(self, replica_details, context):
-        print('replica token:', replica_details.token)
-        queries = ['insert', 'update', 'delete']
-        for q in queries:
-            yield pb2.Query(query=q)
+        print('manager replica register requested')
+        print('manager replica connected.')
+        # print('replica token:', replica_details.token)
+
+        # if token is valid:
+        return pb2.Response(
+            status = True,
+            replicaId = 1   # future work
+        )
             
     def PushUpdates(self, query_iter, context):
         for q in query_iter:
@@ -93,10 +98,12 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
 
 class Manager:
-    def __init__(self, name):
+    def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
         
         # HTTP Endpoint
-        t = multiprocessing.Process(target=self.serve_endpoint)
+        t = multiprocessing.Process(target=self.serve_endpoint, args=(
+            name, http_host, http_port, grpc_host, grpc_port
+        ))
         t.start()
 
         # accept registrations from brokers in a different process
@@ -106,8 +113,8 @@ class Manager:
         t.join()
         server_thread.join()
     
-    def serve_endpoint(self):
-        MyServer(__name__)
+    def serve_endpoint(self, name, http_host, http_port, grpc_host, grpc_port):
+        MyServer(name, http_host, http_port, grpc_host, grpc_port)
 
     def serve_grpc(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))

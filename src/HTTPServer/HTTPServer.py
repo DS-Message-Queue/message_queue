@@ -32,12 +32,12 @@ class ManagerConnection:
         #return response
 
 class MyServerHandler:
-    def __init__(self, name):
+    def __init__(self, name, grpc_host, grpc_port):
         # Connect to db server here and store necessary variables in self
         # Be aware that this gets called everytime an HTTP request is made
         # So maybe there is a better place for it
 
-        self.manager_rpc = ManagerConnection('localhost', '50051')
+        self.manager_rpc = ManagerConnection(grpc_host, grpc_port)
 
         self.app = Flask(name)
         
@@ -328,8 +328,8 @@ class MyServerHandler:
     
 
 class MyServer:
-    def __init__(self, name):
+    def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
         print("Starting Server..")
-        server = MyServerHandler(name)
-        print("Server is running on 127.0.0.1:8002")
-        server.run('127.0.0.1', '8002')
+        server = MyServerHandler(name, grpc_host, grpc_port)
+        print("Server is running on " + http_host + ":" + http_port)
+        server.run(http_host, http_port)
