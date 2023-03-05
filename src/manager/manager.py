@@ -10,7 +10,7 @@ import src.protos.managerservice_pb2 as pb2
 import src.protos.brokerservice_pb2_grpc as b_pb2_grpc
 import src.protos.brokerservice_pb2 as b_pb2
 from src.HTTPServer.HTTPServer import MyServer
-
+import src.Database.main_db as db
 
 class BrokerConnection:
     """
@@ -45,6 +45,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         super().__init__()
         self.brokers_connected = []
         self.brokers = {}
+        
+        self.__db = db.databases()
+        self.__db.clear_database()
 
     def connect_to_broker(self, host, port):
         broker = 1 + len(self.brokers_connected)
@@ -85,7 +88,18 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     
     def GetUpdates(self, request, context):
         # needs sync with HTTPServer to get the queries
-        queries = ['insert', 'update', 'delete']
+        cnt = 1
+        i = 1
+        queries = []
+        for t in ["T-1", "T-2", "T-3"]:
+                for j in [1,2,3]:
+                    queries.append(self.__db.insert_topic(t, j))
+                    queries.append(self.__db.insert_for_producer(i, t, j))
+                    #queries.append(self.__db.insert_for_consumer(i, t, j))
+                    queries.append(self.__db.insert_for_messages(t, "Meesagex - " + str(cnt), 5, j))
+                    cnt += 1
+                i += 1
+        
         for q in queries:
             yield pb2.Query(query=q)
 

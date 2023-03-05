@@ -93,19 +93,9 @@ class MyServerHandler:
         response = {}
 
         # retrieve topics
-        # 
+        ret = message_queue.list_topics()
         
-        # response.update(ret)
-
-        #------------------------------------------------------------------
-        # Example usage
-
-        # transaction = {'req': 'GETTOPICS', 'pid': 12, 'topic': 'foo', 'partition': 'B', 'message': 'test'}
-        # self.manager_rpc.send_transaction(transaction)
-
-        #------------------------------------------------------------------
-        transaction = {'req': 'GetTopics'}
-        ret = self.manager_rpc.send_transaction(transaction)
+        response.update(ret)
 
         #------------------------------------------------------------------
         # Example usage
@@ -116,44 +106,9 @@ class MyServerHandler:
         #------------------------------------------------------------------
 
         status = 400
-        response.update(ret)
         if response['status'] == 'success':
             status = 200
 
-        response = json.dumps(response)
-        return response, status
-
-    def get_partition(self):
-        # ListPartitons for topic
-        
-        print('partitions requested')
-
-        json_is_valid = True
-        data_json = dict(request.args)
-        print(data_json)
-        response = {}
-        status = 400
-        if len(data_json) == 0:
-            print('invalid data in params')
-            response['status'] = 'failure'
-            response['message'] = 'invalid data in params'
-            json_is_valid = False
-
-        if json_is_valid and len(data_json) == 1 and 'topic' in data_json:
-            topic = data_json['topic']
-
-            # generate consumer_id
-            transaction = {'req': 'GetPartition', 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
-            response.update(ret)
-            if response['status'] == 'success':
-                status = 200
-                
-        else:
-            # only accept one topic in data_json
-            response['status'] = 'failure'
-            response['message'] = 'invalid data in params'
-            
         response = json.dumps(response)
         return response, status
 
@@ -164,7 +119,6 @@ class MyServerHandler:
         json_is_valid = True
         data_json = dict(request.args)
         response = {}
-        print(data_json)
         status = 400
         if len(data_json) == 0:
             print('invalid data in params')
@@ -172,39 +126,23 @@ class MyServerHandler:
             response['message'] = 'invalid data in params'
             json_is_valid = False
 
-        if json_is_valid and len(data_json) == 3 and 'topic' in data_json \
-                                                    and 'consumer_id' in data_json:
-            topic        =  data_json['topic']
-            consumer_id  =  int(data_json['consumer_id'])
-            partition = int(data_json['partition'])
-
-            # dequeue
-            transaction = {'req': 'DequeueWithPartition', 'consumer_id': consumer_id, 'topic': topic, 'partition': partition}
-            ret = self.manager_rpc.send_transaction(transaction)
-            
-            response.update(ret)
-            
-            if response['status'] == 'success':
-                status = 200
-
         if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
                                                     and 'consumer_id' in data_json:
             topic        =  data_json['topic']
             consumer_id  =  int(data_json['consumer_id'])
 
             # dequeue
-            transaction = {'req': 'Dequeue', 'consumer_id': consummer_id, 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
+            ret = message_queue.consume_message(topic, consumer_id)
             
             response.update(ret)
             
             if response['status'] == 'success':
                 status = 200
             
-            else:
-                # incorrect params in data_json
-                response['status'] = 'failure'
-                response['message'] = 'invalid data in params'
+        else:
+            # incorrect params in data_json
+            response['status'] = 'failure'
+            response['message'] = 'invalid data in params'
             
         response = json.dumps(response)
         return response, status
@@ -308,9 +246,8 @@ class MyServerHandler:
             topic = data_json['topic']
 
             # generate consumer_id
-            # ret = message_queue.register_consumer(topic)
-            transaction = {'req': 'ConsumerRegister', 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
+            ret = message_queue.register_consumer(topic)
+            
             response.update(ret)
             if response['status'] == 'success':
                 status = 200
