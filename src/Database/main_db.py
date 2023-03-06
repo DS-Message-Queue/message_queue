@@ -94,6 +94,11 @@ class databases:
         self.conn.commit()
         return string
 
+    def run_query(self,query):
+        # Running a pre made query, the query can be anything.
+        self.curr = self.conn.cursor()
+        self.curr.execute(query)
+        self.conn.commit()
 
     def delete_from_message(self, message):
         #Deletion of Messages when there are no subscribers        

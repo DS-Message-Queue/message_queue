@@ -184,7 +184,7 @@ class Broker:
             self.config['host'], self.port
         )
 
-        time.sleep(2)
+        time.sleep(5)
         while True:
             client.register_broker_if_required(
                 self.host, self.port, self.token)

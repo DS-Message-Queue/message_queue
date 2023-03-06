@@ -52,6 +52,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.__consumers = {}
         self.__producers = {}
 
+        self.__queries = []
         self.brokers_connected = []
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
@@ -105,20 +106,20 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     # Might be useful in Replica
     def GetUpdates(self, request, context):
         # needs sync with HTTPServer to get the queries
-        cnt = 1
-        i = 1
-        queries = []
-        for t in ["T-1", "T-2", "T-3"]:
-            for j in [1, 2, 3]:
-                queries.append(self.__db.insert_topic(t, j))
-                queries.append(self.__db.insert_for_producer(i, t, j))
-                # queries.append(self.__db.insert_for_consumer(i, t, j))
-                queries.append(self.__db.insert_for_messages(
-                    t, "Meesagex - " + str(cnt), 5, j))
-                cnt += 1
-            i += 1
+        # cnt = 1
+        # i = 1
+        # queries = []
+        # for t in ["T-1", "T-2", "T-3"]:
+        #     for j in [1, 2, 3]:
+        #         queries.append(self.__db.insert_topic(t, j))
+        #         queries.append(self.__db.insert_for_producer(i, t, j))
+        #         # queries.append(self.__db.insert_for_consumer(i, t, j))
+        #         queries.append(self.__db.insert_for_messages(
+        #             t, "Meesagex - " + str(cnt), 5, j))
+        #         cnt += 1
+        #     i += 1
 
-        for q in queries:
+        for q in self.__queries:
             yield pb2.Query(query=q)
 
     def SendTransaction(self, transaction_req, context):
@@ -140,6 +141,10 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                       "number_of_partitions": len(partitions)}
 
         elif transaction_type == 'ClearDatabase':
+            isLockAvailable = self.__lock.acquire(blocking=False)
+            if isLockAvailable is False:
+                output = {"status": "failure",
+                          "message": "Lock cannot be acquired."}
             try:
                 self.__db.clear_database()
                 output = {"status": "success",
@@ -149,6 +154,10 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                           "message": "Couldn't clear database."}
 
         elif transaction_type == 'CreateTopic':
+            isLockAvailable = self.__lock.acquire(blocking=False)
+            if isLockAvailable is False:
+                output = {"status": "failure",
+                          "message": "Lock cannot be acquired."}
             topic_requested = transaction['topic']
             if topic_requested in self.__topics:
                 output = {"status": "failure",
@@ -156,38 +165,46 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             else:
                 try:
                     # Setting partition id default to 1
-                    self.__db.insert_topic(topic_requested, 1, 0)
+                    output_query = self.__db.insert_topic(topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
                     output = {"status": "success",
                               "message": "Topic created."}
-
+                    self.__queries.append(output_query)
                 except:
                     output = {"status": "failure",
                               "message": "Topic creation failed."}
 
         elif transaction_type == 'ProducerRegister':
             topic_requested = transaction['topic']
+            isLockAvailable = self.__lock.acquire(blocking=False)
+            if isLockAvailable is False:
+                output = {"status": "failure",
+                          "message": "Lock cannot be acquired."}
             if topic_requested not in self.__topics:
                 try:
                     # Setting partition id default to 1
-                    self.__db.insert_topic(topic_requested, 1, 0)
+                    output_query = self.__db.insert_topic(topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         input = {'req' : transaction_type,"topic" : topic_requested,"producer_id":len(self.__producers) + 1}
                         self.brokers[broker].send_transaction(input)
+                    self.__queries.append(output_query)
                 except:
                     output = {"status": "failure",
                               "message": "Producer Registration Failed."}
             try:
+                temp_queries = []
                 for each_partition in self.__topics[topic_requested]:
-                    self.__db.insert_for_producer(len(self.__producers) + 1,topic_requested,each_partition)
+                    output_query = self.__db.insert_for_producer(len(self.__producers) + 1,topic_requested,each_partition)
+                    temp_queries.append(output_query)
                 for broker in self.brokers:
                     self.brokers[broker].send_transaction(transaction)
                 self.__producers[len(self.__producers) + 1]["topic"] = topic_requested
                 output = {"status": "success",
                       "message": "Producer created successfully.", "producer_id": len(self.__producers)}
+                self.__queries = (self.__queries + temp_queries).copy()
             except :
                 output = {"status": "failure",
                     "message": "Producer Registration Failed."}
@@ -207,7 +224,6 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
         else:
             output = {"status": "failure", "message": "Invalid Operation"}
-
         return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
     def pick_broker(self):
@@ -228,6 +244,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             return nextPick
 
 
+#TODO: Need to come up with a way to get updates from each broker after every 5 seconds.
 class Manager:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
 
