@@ -39,6 +39,11 @@ class ManagerServiceStub(object):
                 request_serializer=src_dot_protos_dot_managerservice__pb2.Transaction.SerializeToString,
                 response_deserializer=src_dot_protos_dot_managerservice__pb2.TransactionResponse.FromString,
                 )
+        self.ReceiveUpdatesFromBroker = channel.unary_unary(
+                '/managerservice.ManagerService/ReceiveUpdatesFromBroker',
+                request_serializer=src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.SerializeToString,
+                response_deserializer=src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.FromString,
+                )
 
 
 class ManagerServiceServicer(object):
@@ -74,6 +79,12 @@ class ManagerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReceiveUpdatesFromBroker(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ManagerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -101,6 +112,11 @@ def add_ManagerServiceServicer_to_server(servicer, server):
                     servicer.SendTransaction,
                     request_deserializer=src_dot_protos_dot_managerservice__pb2.Transaction.FromString,
                     response_serializer=src_dot_protos_dot_managerservice__pb2.TransactionResponse.SerializeToString,
+            ),
+            'ReceiveUpdatesFromBroker': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReceiveUpdatesFromBroker,
+                    request_deserializer=src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.FromString,
+                    response_serializer=src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -194,5 +210,22 @@ class ManagerService(object):
         return grpc.experimental.unary_unary(request, target, '/managerservice.ManagerService/SendTransaction',
             src_dot_protos_dot_managerservice__pb2.Transaction.SerializeToString,
             src_dot_protos_dot_managerservice__pb2.TransactionResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ReceiveUpdatesFromBroker(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/managerservice.ManagerService/ReceiveUpdatesFromBroker',
+            src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.SerializeToString,
+            src_dot_protos_dot_managerservice__pb2.UpdatesFromBroker.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

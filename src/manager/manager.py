@@ -9,8 +9,9 @@ import src.protos.brokerservice_pb2 as b_pb2
 from src.HTTPServer.HTTPServer import MyServer
 import src.Database.main_db as db
 import threading
-
-
+from src.Healthchecker.healthchecker import HealthChecker
+from datetime import datetime
+import time
 class BrokerConnection:
     """
     Client for gRPC functionality
@@ -37,6 +38,21 @@ class BrokerConnection:
         ))
         response = json.loads(Response.data)
         return response
+    
+
+class SelfManagerConnection:
+    """
+    Client for gRPC functionality
+    """
+    def __init__(self, server_host, server_port):
+        # instantiate a channel
+        self.channel = grpc.insecure_channel(
+            '{}:{}'.format(server_host, server_port))
+        # bind the client and the server
+        self.stub = pb2_grpc.ManagerServiceStub(self.channel)
+
+    def send_transaction(self, transaction):
+        self.stub.ReceiveUpdatesFromBroker(pb2.UpdatesFromBroker())
 
 
 class ManagerService(pb2_grpc.ManagerServiceServicer):
@@ -51,7 +67,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.__topics = {}
         self.__consumers = {}
         self.__producers = {}
-
+        self.__health_checker = HealthChecker()
         self.__queries = []
         self.brokers_connected = []
         self.last_inactive_broker = 1
@@ -75,6 +91,10 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     def RegisterBroker(self, broker, context):
         print('register broker called')
         broker_id = self.connect_to_broker(broker.host, broker.port)
+        try:
+            self.__health_checker.insert_into_broker(broker_id,datetime.now())
+        except:
+            pass
         transaction = {
             "req": "Init",
             "topics": self.__topics,
@@ -107,6 +127,14 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     def GetUpdates(self, request, context):
         for q in self.__queries:
             yield pb2.Query(query=q)
+
+    def ReceiveUpdatesFromBroker(self,req, context):
+        transaction = {'req' : 'Poll'}
+        for broker in self.brokers:
+            res = self.brokers[broker].send_transaction(transaction)
+            for query in res['queries']:
+                self.__db.run_query(query)
+        return pb2.UpdatesFromBroker()
 
     def SendTransaction(self, transaction_req, context):
         transaction = json.loads(transaction_req.data)
@@ -157,6 +185,10 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
+                        try:
+                            self.__health_checker.insert_into_broker(broker,datetime.now())
+                        except:
+                            pass
                     output = {"status": "success",
                               "message": "Topic created."}
                     self.__queries.append(output_query)
@@ -182,6 +214,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         input = {'req': transaction_type, "topic": topic_requested, "producer_id": len(
                             self.__producers) + 1}
                         self.brokers[broker].send_transaction(input)
+                        try:
+                            self.__health_checker.insert_into_broker(broker,datetime.now())
+                        except:
+                            pass
+
                     self.__queries.append(output_query)
                     # END THE WAL LOGGING
                 except:
@@ -196,11 +233,20 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     temp_queries.append(output_query)
                 for broker in self.brokers:
                     self.brokers[broker].send_transaction(transaction)
+                    try:
+                        self.__health_checker.insert_into_broker(broker,datetime.now())
+                    except:
+                        pass
+
                 self.__producers[len(self.__producers) +
                                  1]["topic"] = topic_requested
                 output = {"status": "success",
                           "message": "Producer created successfully.", "producer_id": len(self.__producers)}
                 self.__queries = (self.__queries + temp_queries).copy()
+                try:
+                    self.__health_checker.insert_into_producer(len(self.__producers) +1,datetime.now())
+                except:
+                    pass
                 # END THE WAL LOGGING
             except:
                 output = {"status": "failure",
@@ -213,14 +259,20 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 if broker == 0:
                     output = {"status": "failure",
                               "message": "No brokers to handle request."}
-                try:
-                    # START THE WAL LOGGING
-                    output = self.brokers[broker].send_transaction(transaction)
-                    break
-                    # END THE WAL LOGGING
-                except:
-                    self.brokers.pop(broker, None)
-                    continue
+                else:
+                    try:
+                        # START THE WAL LOGGING
+                        output = self.brokers[broker].send_transaction(transaction)
+                        try:
+                            self.__health_checker.insert_into_broker(broker,datetime.now())
+                            self.__health_checker.insert_into_producer(transaction['producer_id'],datetime.now())
+                        except:
+                            pass
+                        break
+                        # END THE WAL LOGGING
+                    except:
+                        self.brokers.pop(broker, None)
+                        continue
 
         else:
             output = {"status": "failure", "message": "Invalid Operation"}
@@ -247,7 +299,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 # TODO: Need to come up with a way to get updates from each broker after every 5 seconds.
 class Manager:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
-
+        self.__grpc_host =  grpc_host
+        self.__grpc_port = grpc_port
         # HTTP Endpoint
         t = multiprocessing.Process(target=self.serve_endpoint, args=(
             name, http_host, http_port, grpc_host, grpc_port
@@ -258,8 +311,20 @@ class Manager:
         server_thread = multiprocessing.Process(target=self.serve_grpc)
         server_thread.start()
 
+        time.sleep(2)
+        self_thread = multiprocessing.Process(target=self.call_brokers)
+        self_thread.start()
+
         t.join()
         server_thread.join()
+        self_thread.join()
+    
+    def call_brokers(self):
+        print("This gets called")
+        own_manager_rpc = SelfManagerConnection(self.__grpc_host, self.__grpc_port)
+        while(1):
+            own_manager_rpc.send_transaction({})
+            time.sleep(5)
 
     def serve_endpoint(self, name, http_host, http_port, grpc_host, grpc_port):
         MyServer(name, http_host, http_port, grpc_host, grpc_port)

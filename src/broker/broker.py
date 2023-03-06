@@ -114,7 +114,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
     def process_transaction(self, transaction):
         req_type = transaction['req']
         if req_type == 'Enqueue':
-            return self.publish_message(transaction["topic"], transaction["pid"], transaction["message"])
+            return self.publish_message(transaction["topic"], transaction["producer_id"], transaction["message"])
         elif req_type == 'CreateTopic':
             topic = transaction['topic']
             if topic not in self.__topics:
@@ -132,6 +132,10 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             self.__topics = transaction['topics']
             self.__producers = transaction['producers']
             return {}
+        elif req_type == 'Poll':
+            temp = self.__enqueue_logs.copy()
+            self.__enqueue_logs.clear()
+            return {  "queries" : temp}
         else:
             return self.add_producer(transaction["pid"], transaction["topic"])
 
