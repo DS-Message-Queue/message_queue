@@ -1,13 +1,14 @@
 import grpc
 import json
-import asyncio
 from concurrent import futures
 import time
 import src.protos.managerservice_pb2_grpc as m_pb2_grpc
 import src.protos.managerservice_pb2 as m_pb2
 import src.protos.brokerservice_pb2_grpc as b_pb2_grpc
 import src.protos.brokerservice_pb2 as b_pb2
+from src.broker.utils import raise_error, raise_success
 import multiprocessing
+import threading
 
 
 class ManagerConnection:
@@ -19,7 +20,7 @@ class ManagerConnection:
 
         # instantiate broker_id
         self.broker_id = None
-        
+
         # instantiate a channel
         self.channel = grpc.insecure_channel(
             '{}:{}'.format(server_host, server_port))
@@ -27,7 +28,6 @@ class ManagerConnection:
         # bind the client and the server
         self.stub = m_pb2_grpc.ManagerServiceStub(self.channel)
 
-        
         # broker server communication channel
         self.broker_channel = grpc.insecure_channel(
             '{}:{}'.format(broker_host, broker_port))
@@ -73,7 +73,7 @@ class ManagerConnection:
                 print('Successfully registered.')
                 self.broker_id = Status.brokerId
                 self.broker_stub.ResetBroker(b_pb2.BrokerDetails(
-                    brokerId = Status.brokerId
+                    brokerId=Status.brokerId
                 ))
 
 
@@ -81,10 +81,17 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
     def __init__(self):
         super().__init__()
+        self.__topics = {}
+        self.__producers = {}
         self.broker_id = None
+        self.__publish_lock = threading.Lock()
+        self.__enqueue_logs = []
 
     def clear_data(self):
-        pass
+        self.__enqueue_logs.clear()
+        for topic in self.__topics:
+            for partition in self.__topics[topic]:
+                self.__topics[topic][partition]["messages"].clear()
 
     def ResetBroker(self, broker_details, context):
         self.broker_id = broker_details.brokerId
@@ -93,31 +100,78 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
     def GetUpdates(self, request, context):
         # Send data from here to Manager
+        logs = self.__enqueue_logs.copy()
+        self.clear_data()
         return b_pb2.Queries(
-            queries=['insert', 'delete', 'update']
+            queries=logs
         )
 
     def SendTransaction(self, transaction_req, context):
         transaction = json.loads(transaction_req.data)
-
-        # process the transaction
-        self.process_transaction(transaction)
-
-        response = {'status': 'success', 'message': 'successfully added!'}
+        response = self.process_transaction(transaction)
         return b_pb2.Response(data=bytes(json.dumps(response).encode('utf-8')))
 
     def process_transaction(self, transaction):
-        print(transaction)
+        req_type = transaction['req']
+        if req_type == 'Enqueue':
+            return self.publish_message(transaction["topic"], transaction["pid"], transaction["message"])
+        elif req_type == 'CreateTopic':
+            topic = transaction['topic']
+            if topic not in self.__topics:
+                self.__topics[topic][self.broker_id] = {"messages": []}
+            return {}
+        elif req_type == 'ProducerRegister':
+            topic = transaction['topic']
+            producer_id = transaction['producer_id']
+            if topic not in self.__topics:
+                self.__topics[topic][self.broker_id] = {"messages": []}
+            if producer_id not in self.__producers:
+                self.__producers[producer_id] = {"topic": topic}
+            return {}
+        elif req_type == 'Init':
+            self.__topics = transaction['topics']
+            self.__producers = transaction['producers']
+            return {}
+        else:
+            return self.add_producer(transaction["pid"], transaction["topic"])
+
+    def add_producer(self, producer_id: int, topic_name: str):
+        self.__producers[producer_id]["topic"] = topic_name
+
+    def publish_message(self, producer_id: int, topic_name: str, message: str):
+        isLockAvailable = self.__publish_lock.acquire(blocking=False)
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
+        if topic_name not in self.__topics:
+            self.__publish_lock.release()
+            return raise_error("Topic " + topic_name + " doesn't exist.")
+        if producer_id not in self.__producers:
+            self.__publish_lock.release()
+            return raise_error("Producer doesn't exist.")
+        if "topic" not in self.__producers[producer_id] or self.__producers[producer_id]["topic"] != topic_name:
+            self.__publish_lock.release()
+            return raise_error("Producer cannot publish to " + topic_name + ".")
+        self.__topics[topic_name][self.broker_id]["messages"].append({
+            "message": message,
+            "subscribers": 0  # This will be updated at Replica
+        })
+        # TODO: Check the correct query.
+        self.__enqueue_logs.append(
+            "INSERT INTO topic(topic_name, partition) VALUES('" + topic_name + "', " + str(self.broker_id) + ");")
+        self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition, subscribers) VALUES('" +
+                                   message + "', '" + topic_name + "', " + str(self.broker_id) + "', " + str(0) + ");")
+        self.__publish_lock.release()
+        return raise_success("Message " + message + " added successfully to partition " + self.broker_id + " of topic " + topic_name + ".")
 
 
 class Broker:
-    def __init__(self):
+    def __init__(self, port):
 
         # retrieve broker config
         with open('./src/broker/broker.json', 'r') as config_file:
             self.config = json.load(config_file)
             self.host = self.config['host']
-            self.port = self.config['port']
+            self.port = port
             self.token = self.config['token']
 
         # start broker service
@@ -127,11 +181,13 @@ class Broker:
         # manager connection
         client = ManagerConnection(
             self.config['server_host'], self.config['server_port'],
-            self.config['host'], self.config['port']
+            self.config['host'], self.port
         )
 
+        time.sleep(2)
         while True:
-            client.register_broker_if_required(self.host, self.port, self.token)
+            client.register_broker_if_required(
+                self.host, self.port, self.token)
             time.sleep(1)
 
         t.join()
@@ -139,8 +195,8 @@ class Broker:
     def serve(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
         b_pb2_grpc.add_BrokerServiceServicer_to_server(BrokerService(), server)
-        ip = '{}:{}'.format(self.config['host'], self.config['port'])
-        server.add_insecure_port('[::]:' + self.config['port'])
+        ip = '{}:{}'.format(self.config['host'], self.port)
+        server.add_insecure_port('[::]:' + self.port)
         print('broker listening at:', ip)
         server.start()
         server.wait_for_termination()

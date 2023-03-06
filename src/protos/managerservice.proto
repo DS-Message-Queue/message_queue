@@ -9,7 +9,7 @@ service ManagerService{
  rpc RegisterReplica(ReplicaDetails) returns (Response) {}
  rpc GetUpdates(Request) returns (stream Query) {}
  rpc SendTransaction(Transaction) returns (TransactionResponse) {}
-
+//  rpc SendProducerSubscription(Transaction) returns (SendProducerSubscriptionResponse){}
 }
 
 message BrokerDetails{
@@ -46,3 +46,5 @@ message Response{
  int32 replicaId = 2;
 }
 message HeartBeat{}
+
+// message SendProducerSubscriptionResponse{}
