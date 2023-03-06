@@ -57,7 +57,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
-        # TODO: Every  5 seconds call each broker and check  for new updates.
+        # Perform WAL Recovery
 
     def connect_to_broker(self, host, port):
         self.total_brokers_connected += 1
@@ -75,11 +75,12 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     def RegisterBroker(self, broker, context):
         print('register broker called')
         broker_id = self.connect_to_broker(broker.host, broker.port)
-        transaction = {"req": 'Init', "data": {
+        transaction = {
+            "req": "Init",
             "topics": self.__topics,
             "producers": self.__producers
-        }}
-        self.brokers[broker].send_transaction(transaction)
+        }
+        self.brokers[broker_id].send_transaction(transaction)
         return pb2.Status(status=True, brokerId=broker_id)
 
     def HealthCheck(self, heartbeat, context):
@@ -103,22 +104,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         # connect to db and execute the queries here
         return pb2.Response()
 
-    # Might be useful in Replica
     def GetUpdates(self, request, context):
-        # needs sync with HTTPServer to get the queries
-        # cnt = 1
-        # i = 1
-        # queries = []
-        # for t in ["T-1", "T-2", "T-3"]:
-        #     for j in [1, 2, 3]:
-        #         queries.append(self.__db.insert_topic(t, j))
-        #         queries.append(self.__db.insert_for_producer(i, t, j))
-        #         # queries.append(self.__db.insert_for_consumer(i, t, j))
-        #         queries.append(self.__db.insert_for_messages(
-        #             t, "Meesagex - " + str(cnt), 5, j))
-        #         cnt += 1
-        #     i += 1
-
         for q in self.__queries:
             yield pb2.Query(query=q)
 
@@ -164,14 +150,17 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                           "message": "Topic already exists."}
             else:
                 try:
+                    # START THE WAL LOGGING
                     # Setting partition id default to 1
-                    output_query = self.__db.insert_topic(topic_requested, 1, 0)
+                    output_query = self.__db.insert_topic(
+                        topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
                     output = {"status": "success",
                               "message": "Topic created."}
                     self.__queries.append(output_query)
+                    # END WAL TRANSACTION
                 except:
                     output = {"status": "failure",
                               "message": "Topic creation failed."}
@@ -185,39 +174,50 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             if topic_requested not in self.__topics:
                 try:
                     # Setting partition id default to 1
-                    output_query = self.__db.insert_topic(topic_requested, 1, 0)
+                    # START THE WAL LOGGING
+                    output_query = self.__db.insert_topic(
+                        topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
-                        input = {'req' : transaction_type,"topic" : topic_requested,"producer_id":len(self.__producers) + 1}
+                        input = {'req': transaction_type, "topic": topic_requested, "producer_id": len(
+                            self.__producers) + 1}
                         self.brokers[broker].send_transaction(input)
                     self.__queries.append(output_query)
+                    # END THE WAL LOGGING
                 except:
                     output = {"status": "failure",
                               "message": "Producer Registration Failed."}
             try:
+                # START THE WAL LOGGING
                 temp_queries = []
                 for each_partition in self.__topics[topic_requested]:
-                    output_query = self.__db.insert_for_producer(len(self.__producers) + 1,topic_requested,each_partition)
+                    output_query = self.__db.insert_for_producer(
+                        len(self.__producers) + 1, topic_requested, each_partition)
                     temp_queries.append(output_query)
                 for broker in self.brokers:
                     self.brokers[broker].send_transaction(transaction)
-                self.__producers[len(self.__producers) + 1]["topic"] = topic_requested
+                self.__producers[len(self.__producers) +
+                                 1]["topic"] = topic_requested
                 output = {"status": "success",
-                      "message": "Producer created successfully.", "producer_id": len(self.__producers)}
+                          "message": "Producer created successfully.", "producer_id": len(self.__producers)}
                 self.__queries = (self.__queries + temp_queries).copy()
-            except :
+                # END THE WAL LOGGING
+            except:
                 output = {"status": "failure",
-                    "message": "Producer Registration Failed."}
+                          "message": "Producer Registration Failed."}
 
         elif transaction_type == 'Enqueue':
+
             for _i in range(self.total_brokers_connected):
                 broker = self.pick_broker(self)
                 if broker == 0:
                     output = {"status": "failure",
                               "message": "No brokers to handle request."}
                 try:
+                    # START THE WAL LOGGING
                     output = self.brokers[broker].send_transaction(transaction)
                     break
+                    # END THE WAL LOGGING
                 except:
                     self.brokers.pop(broker, None)
                     continue
@@ -244,7 +244,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             return nextPick
 
 
-#TODO: Need to come up with a way to get updates from each broker after every 5 seconds.
+# TODO: Need to come up with a way to get updates from each broker after every 5 seconds.
 class Manager:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
 

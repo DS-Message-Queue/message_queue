@@ -64,7 +64,6 @@ class ManagerConnection:
             needs_register = not self.health_check()
 
         if needs_register:
-            print("Here",type(host), type(port), type(token))
             self.health_check()
             Status = self.stub.RegisterBroker(m_pb2.BrokerDetails(
                 host=host, port=port, token=token
