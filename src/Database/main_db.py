@@ -94,6 +94,11 @@ class databases:
         self.conn.commit()
         return string
 
+    def run_query(self,query):
+        # Running a pre made query, the query can be anything.
+        self.curr = self.conn.cursor()
+        self.curr.execute(query)
+        self.conn.commit()
 
     def delete_from_message(self, message):
         #Deletion of Messages when there are no subscribers        
@@ -150,8 +155,10 @@ class databases:
                 __topics[topic[0]] = {
                     "producers": [],
                     "consumers": [],
-                    "messages": [],
-                    "bias" : 0
+                    topic[2] : {
+                        "messages": [],
+                        "bias" : 0
+                    }
                 }
             
             self.curr.execute("SELECT * from producer WHERE topic_name = '" + topic[0] + "'; ")
@@ -176,8 +183,8 @@ class databases:
             for message in result_messaging:
                 messaging.append({"message" : message[0], "subscribers" : message[2]})
 
-            __topics[topic[0]]["messages"] = messaging
-            __topics[topic[0]]["bias"] = topic[1]
+            __topics[topic[0]][topic[2]]["messages"] = messaging
+            __topics[topic[0]][topic[2]]["bias"] = topic[1]
             
             
 

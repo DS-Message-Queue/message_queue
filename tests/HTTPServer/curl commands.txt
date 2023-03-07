@@ -13,7 +13,7 @@ curl -H 'Content-Type: application/json' \
       127.0.0.1:8001/consumer/register
 
 curl -H 'Content-Type: application/json' \
-      -d '{ "topic" : "foo"}' \
+      -d '{ "topic" : "T-1"}' \
       -X POST \
       127.0.0.1:8002/producer/register
 

@@ -12,6 +12,9 @@ import psycopg2
 import threading
 from src.controller.utils import raise_error, raise_success
 
+
+partition_id = 1
+
 class ManagerConnection:
     """
     Client for gRPC functionality
@@ -19,6 +22,7 @@ class ManagerConnection:
 
     def __init__(self, host, port, token):
 
+        print("Constructor called")
         self.token = token
         self.registered = False
 
@@ -42,6 +46,8 @@ class ManagerConnection:
         self.create_tables(self.conn)
         self.del_database()
         self.__lock = threading.Lock()
+
+        self.current_partition = {}
 
         
     
@@ -136,6 +142,7 @@ class ManagerConnection:
 
         for consumer in result_consumer:
             if consumer[0] not in self.__consumer:
+                print("I am here")
                 self.__consumer[str(consumer[0])] = {}
 
         for consumer in self.__consumer:
@@ -177,6 +184,9 @@ class ManagerConnection:
             self.conn.commit()
             # self.__consumer[consumer_id][topic][partition]['subscribers'][position] += 1
             
+    def partition_id(self):
+        for consumer in self.__consumer:
+            self.current_partition[consumer] = 1
 
     def consumer_register(self, topic):
         topics = []
@@ -220,18 +230,16 @@ class ManagerConnection:
             position = 0
 
         self.insert_for_consumer(consumer_id, topic, position, partition)
-
-        print(partition)
-
+        # self.__consumer == {}
         self.initialize_dict()
-
-        print(self.__consumer)
-
+        self.partition_id()
         self.__lock.release() 
+        print(self.__consumer)
 
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
     def list_topics(self):
+        self.get_updates()
         topics = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT DISTINCT(topic_name) from topic;")
@@ -244,9 +252,12 @@ class ManagerConnection:
             return raise_error("Lock cannot be acquired.")
 
         self.__lock.release()
+        if topics == []:
+            return raise_error("No topics found")
         return raise_success("Successfully fetched topics.", {"topics": topics})
 
     def list_partitions(self, topic):
+        self.get_updates()
         partition = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT partition_id from topic where topic_name = '" + topic + "';")
@@ -259,9 +270,11 @@ class ManagerConnection:
             return raise_error("Lock cannot be acquired.")
 
         self.__lock.release()
+        if (partition == []):
+            return raise_error("No partitions found")
         return raise_success("Successfully fetched Partitions for topic - " + topic, {"partitions": partition})
 
-    def consume_message_with_partition(self, topic, consumer_id, partition):
+    def consume_message_with_partition(self, topic, consumer_id, partition, depth = 0):
 
 
         isLockAvailable = self.__lock.acquire(blocking = False)
@@ -274,35 +287,71 @@ class ManagerConnection:
 
         message_position = self.__consumer[consumer_id][topic][partition]['position']
         print(message_position)
+
+        if self.__consumer == {}:
+            self.__lock.release()
+            # self.get_updates()
+            return raise_error("No consumer found")
+
         if message_position >= len(self.__consumer[consumer_id][topic][partition]['message']):
             self.__lock.release()
             self.get_updates()
 
+            if depth == 2:
+                return raise_error("No new message is published to " + topic_name + ", " + partition + ".")
+            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
+            
+
         if self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] == 0:
             self.__lock.release()
-            return raise_error("No subscribers found")
+
+            self.get_updates()
+            if depth == 2:
+                return raise_error("No subscribers found")
+            
+            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
         
 
         message = self.__consumer[consumer_id][topic][partition]['message'][message_position]
         self.__consumer[consumer_id][topic][partition]['position'] = self.__consumer[consumer_id][topic][partition]['position'] + 1
         self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] -= 1
-        print(message_position)
+
         self.curr = self.conn.cursor()
-        self.curr.execute("UPDATE consumer set position = " + str(message_position) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
+        self.curr.execute("UPDATE consumer set position = " + str(self.__consumer[consumer_id][topic][partition]['position']) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
         self.conn.commit()
         self.curr.execute("Update message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + ";")
         self.conn.commit()
+        
+        # self.__consumer == {}
         self.initialize_dict()
-
+        print(self.__consumer)
         self.__lock.release()
         return raise_success("Message fetched successfully.", {
             "message": message
         })
 
 
-    def consume_message(self):
-        pass
-    
+    def consume_message(self, topic, consumer_id, depth = 0):
+
+        if consumer_id not in self.__consumer:
+            return raise_error("Consumer not found.")
+
+        partition = str(self.current_partition[consumer_id])
+        self.current_partition[consumer_id] += 1
+        #print(type(self.__consumer[consumer_id]['current_partition']))
+        while self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
+            partition = str(self.current_partition[consumer_id])
+            self.current_partition[consumer_id] += 1
+
+        if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
+            if depth == 2:
+                return raise_error("Messages in all partitions exhausted")
+
+            self.get_updates()
+            return self.consume_message(topic, consumer_id, depth + 1)
+        
+        return self.consume_message_with_partition(topic, consumer_id, partition)
+
 
     def __del__(self):
         if self.conn:
@@ -362,44 +411,32 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
 
         if transaction['req'] == 'DequeueWithPartition':
             # self.manager.get_updates()
-            print("Hai in dequeu part")
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
             partition = transaction['partition']
 
             return self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
 
-            
+        if transaction['req'] == 'Dequeue':
+            topic = transaction['topic']
+            consumer_id = transaction['consumer_id']
 
+            return self.manager.consume_message(topic, str(consumer_id))
 
 class ManagerReplica:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
 
         # HTTP Endpoint
+        
         t = multiprocessing.Process(target=self.serve_endpoint, args=(
             name, http_host, http_port, grpc_host, grpc_port
         ))
         t.start()
-
-        with open('./src/manager_replica/replica.json', 'r') as config_file:
-            self.config = json.load(config_file)
-
-        manager = ManagerConnection(
-            self.config['server_host'], 
-            self.config['server_port'], 
-            self.config['token']
-        )
-
-        # register replica at the manager
-        manager.register_replica_if_required()
-
-        # get updates from the manager
-        manager.get_updates()
-
         # start grpc server for replica
         server_thread = multiprocessing.Process(target=self.serve_grpc)
         server_thread.start()
-
+        
+        # self.serve_endpoint(name, http_host, http_port, grpc_host, grpc_port)
         t.join()
         server_thread.join()
 
