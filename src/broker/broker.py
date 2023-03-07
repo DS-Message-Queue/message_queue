@@ -91,6 +91,8 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         self.__enqueue_logs.clear()
         for topic in self.__topics:
             for partition in self.__topics[topic]:
+                if partition == 'consumers' or partition == 'producers':
+                    continue
                 self.__topics[topic][partition]["messages"].clear()
 
     def ResetBroker(self, broker_details, context):

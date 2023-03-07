@@ -237,17 +237,21 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 # txn_id = self.wal.logEvent(broker, "Register Producer", len(self.__producers) + 1, topic_requested)
                 temp_queries = []
                 for each_partition in self.__topics[topic_requested]:
+                    if each_partition == 'consumers' or each_partition == 'producers':
+                        continue
                     output_query = self.__db.insert_for_producer(
                         len(self.__producers) + 1, topic_requested, each_partition)
                     temp_queries.append(output_query)
                 for broker in self.brokers:
-                    self.brokers[broker].send_transaction(transaction)
+                    input = {'req': transaction_type, "topic": topic_requested, "producer_id": len(
+                            self.__producers) + 1}
+                    self.brokers[broker].send_transaction(input)
                     try:
                         self.__health_checker.insert_into_broker(broker,datetime.now())
                     except:
                         pass
 
-                self.__producers[len(self.__producers) + 1]["topic"] = topic_requested
+                self.__producers[len(self.__producers) + 1] = {'topic': topic_requested}
                 output = {"status": "success",
                           "message": "Producer created successfully.", "producer_id": len(self.__producers)}
                 self.__queries = (self.__queries + temp_queries).copy()
@@ -259,7 +263,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 # self.wal.logSuccess(txn_id, broker, "Register Producer", len(self.__producers) + 1, topic_requested)
                 # END THE WAL LOGGING
             except Exception as e:
-                print(e)
+                print('exception:', e)
                 output = {"status": "failure",
                           "message": "Producer Registration Failed."}
 
