@@ -34,9 +34,11 @@ class BrokerConnection:
         # return Queries.queries
 
     def send_transaction(self, transaction):
+        print("Here",transaction)
         Response = self.stub.SendTransaction(b_pb2.Transaction(
             data=bytes(json.dumps(transaction).encode('utf-8'))
         ))
+        print("Done",transaction)
         response = json.loads(Response.data)
         return response
     
@@ -301,14 +303,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 broker = self.pick_broker()
                 if broker == 0:
                     output = {"status": "failure",
-                              "message": "No brokers to handle request."}
+                                "message": "No brokers to handle request."}
                     break
+                    # return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
                 else:
                     try:
                         # START THE WAL LOGGING
                         # txn_id = self.wal.logEvent(broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
+                        print("Called for broker",broker)
                         output = self.brokers[broker].send_transaction(transaction)
-                        print("output",output)
                         try:
                             self.__health_checker.insert_into_broker(broker,datetime.now())
                             self.__health_checker.insert_into_producer(transaction['producer_id'],datetime.now())
@@ -317,9 +320,12 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         # self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         break
                         # END THE WAL LOGGING
-                    except:
+                    except Exception as e:
+                        print(e,"Here error")
                         self.brokers.pop(broker, None)
-                        continue
+                        # output = {"status": "failure",
+                        #         "message": "Could not publish message"}
+                        # continue
             return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         else:
