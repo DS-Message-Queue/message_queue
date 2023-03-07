@@ -12,6 +12,7 @@ import threading
 from src.Healthchecker.healthchecker import HealthChecker
 from datetime import datetime
 import time
+from src.WAL.WAL import WriteAheadLog
 class BrokerConnection:
     """
     Client for gRPC functionality
@@ -73,6 +74,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
+        
+        self.wal = WriteAheadLog()
         # Perform WAL Recovery
 
     def connect_to_broker(self, host, port):
@@ -180,6 +183,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 try:
                     # START THE WAL LOGGING
                     # Setting partition id default to 1
+                    txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
                     output_query = self.__db.insert_topic(
                         topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
@@ -192,6 +196,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     output = {"status": "success",
                               "message": "Topic created."}
                     self.__queries.append(output_query)
+
+                    self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END WAL TRANSACTION
                 except:
                     output = {"status": "failure",
@@ -207,6 +213,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 try:
                     # Setting partition id default to 1
                     # START THE WAL LOGGING
+                    txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
                     output_query = self.__db.insert_topic(
                         topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
@@ -220,12 +227,14 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                             pass
 
                     self.__queries.append(output_query)
+                    self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END THE WAL LOGGING
                 except:
                     output = {"status": "failure",
                               "message": "Producer Registration Failed."}
             try:
                 # START THE WAL LOGGING
+                # txn_id = self.wal.logEvent(broker, "Register Producer", len(self.__producers) + 1, topic_requested)
                 temp_queries = []
                 for each_partition in self.__topics[topic_requested]:
                     output_query = self.__db.insert_for_producer(
@@ -238,8 +247,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     except:
                         pass
 
-                self.__producers[len(self.__producers) +
-                                 1]["topic"] = topic_requested
+                self.__producers[len(self.__producers) + 1]["topic"] = topic_requested
                 output = {"status": "success",
                           "message": "Producer created successfully.", "producer_id": len(self.__producers)}
                 self.__queries = (self.__queries + temp_queries).copy()
@@ -247,8 +255,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     self.__health_checker.insert_into_producer(len(self.__producers) +1,datetime.now())
                 except:
                     pass
+                
+                # self.wal.logSuccess(txn_id, broker, "Register Producer", len(self.__producers) + 1, topic_requested)
                 # END THE WAL LOGGING
-            except:
+            except Exception as e:
+                print(e)
                 output = {"status": "failure",
                           "message": "Producer Registration Failed."}
 
@@ -262,6 +273,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 else:
                     try:
                         # START THE WAL LOGGING
+                        txn_id = self.wal.logEvent(broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         output = self.brokers[broker].send_transaction(transaction)
                         try:
                             self.__health_checker.insert_into_broker(broker,datetime.now())
@@ -269,6 +281,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         except:
                             pass
                         break
+                        self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         # END THE WAL LOGGING
                     except:
                         self.brokers.pop(broker, None)
