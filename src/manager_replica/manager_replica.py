@@ -300,7 +300,7 @@ class ManagerConnection:
             self.get_updates()
 
             if depth == 2:
-                return raise_error("No new message is published to " + topic_name + ", " + partition + ".")
+                return raise_error("No new message is published to " + topic + ", " + partition + ".")
             return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
             
 
@@ -338,12 +338,16 @@ class ManagerConnection:
             if consumer_id not in self.__consumer:
                 return raise_error("Consumer not found.")
 
-            partition = str(self.current_partition[consumer_id])
-            self.current_partition[consumer_id] += 1
-            #print(type(self.__consumer[consumer_id]['current_partition']))
-            while self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
-                partition = str(self.current_partition[consumer_id])
-                self.current_partition[consumer_id] += 1
+            self.curr.execute("SELECT * from topic WHERE topic_name = '" + topic + "';")
+            result = self.curr.fetchall()
+            partition = 1
+            
+            for res in result:
+                partition = res[2]
+                if self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
+                    continue
+                else:
+                    break
 
             if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
                 if depth == 2:
@@ -429,6 +433,7 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
             return self.manager.consume_message(topic, str(consumer_id))
 
         elif transaction['req'] == 'ClearDatabase':
+            output = {}
             try:
                 self.manager.del_database()
                 output = {"status": "success",
@@ -436,8 +441,7 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
             except:
                 output = {"status": "failure",
                           "message": "Couldn't clear database."}
-            self.__lock.release()
-            return m_pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+            return output
 
 class ManagerReplica:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):

@@ -142,7 +142,6 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 pass
             if res is not None:
                 for query in res:
-                    print(query)
                     self.__db.run_query(query)
         return pb2.UpdatesFromBroker()
 
