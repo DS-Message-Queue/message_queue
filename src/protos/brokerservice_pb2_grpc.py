@@ -19,10 +19,10 @@ class BrokerServiceStub(object):
                 request_serializer=src_dot_protos_dot_brokerservice__pb2.Transaction.SerializeToString,
                 response_deserializer=src_dot_protos_dot_brokerservice__pb2.Response.FromString,
                 )
-        self.GetUpdates = channel.unary_unary(
+        self.GetUpdates = channel.unary_stream(
                 '/brokerservice.BrokerService/GetUpdates',
                 request_serializer=src_dot_protos_dot_brokerservice__pb2.Request.SerializeToString,
-                response_deserializer=src_dot_protos_dot_brokerservice__pb2.Queries.FromString,
+                response_deserializer=src_dot_protos_dot_brokerservice__pb2.Query.FromString,
                 )
         self.ResetBroker = channel.unary_unary(
                 '/brokerservice.BrokerService/ResetBroker',
@@ -60,10 +60,10 @@ def add_BrokerServiceServicer_to_server(servicer, server):
                     request_deserializer=src_dot_protos_dot_brokerservice__pb2.Transaction.FromString,
                     response_serializer=src_dot_protos_dot_brokerservice__pb2.Response.SerializeToString,
             ),
-            'GetUpdates': grpc.unary_unary_rpc_method_handler(
+            'GetUpdates': grpc.unary_stream_rpc_method_handler(
                     servicer.GetUpdates,
                     request_deserializer=src_dot_protos_dot_brokerservice__pb2.Request.FromString,
-                    response_serializer=src_dot_protos_dot_brokerservice__pb2.Queries.SerializeToString,
+                    response_serializer=src_dot_protos_dot_brokerservice__pb2.Query.SerializeToString,
             ),
             'ResetBroker': grpc.unary_unary_rpc_method_handler(
                     servicer.ResetBroker,
@@ -108,9 +108,9 @@ class BrokerService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/brokerservice.BrokerService/GetUpdates',
+        return grpc.experimental.unary_stream(request, target, '/brokerservice.BrokerService/GetUpdates',
             src_dot_protos_dot_brokerservice__pb2.Request.SerializeToString,
-            src_dot_protos_dot_brokerservice__pb2.Queries.FromString,
+            src_dot_protos_dot_brokerservice__pb2.Query.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

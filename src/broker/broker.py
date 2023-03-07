@@ -102,11 +102,10 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
     def GetUpdates(self, request, context):
         # Send data from here to Manager
-        logs = self.__enqueue_logs.copy()
-        self.clear_data()
-        return b_pb2.Queries(
-            queries=logs
-        )
+        temp = self.__enqueue_logs.copy()
+        self.__enqueue_logs.clear()
+        for query in temp:
+            yield b_pb2.Query(query=query)
 
     def SendTransaction(self, transaction_req, context):
         transaction = json.loads(transaction_req.data)
@@ -135,10 +134,6 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             self.__topics = transaction['topics']
             self.__producers = transaction['producers']
             return {}
-        elif req_type == 'Poll':
-            temp = self.__enqueue_logs.copy()
-            self.__enqueue_logs.clear()
-            return {  "queries" : temp}
         else:
             return self.add_producer(transaction["pid"], transaction["topic"])
 
@@ -162,7 +157,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             "message": message,
             "subscribers": 0  # This will be updated at Replica
         })
-        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM example_table WHERE topic_name = '"+ topic_name +"' and partition_id =" + str(self.broker_id) + ");")
+        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '"+ topic_name +"' and partition_id =" + str(self.broker_id) + ");")
         self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
                                    message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
         res = raise_success("Message added successfully.")

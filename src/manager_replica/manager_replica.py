@@ -334,25 +334,27 @@ class ManagerConnection:
 
 
     def consume_message(self, topic, consumer_id, depth = 0):
+        try:
+            if consumer_id not in self.__consumer:
+                return raise_error("Consumer not found.")
 
-        if consumer_id not in self.__consumer:
-            return raise_error("Consumer not found.")
-
-        partition = str(self.current_partition[consumer_id])
-        self.current_partition[consumer_id] += 1
-        #print(type(self.__consumer[consumer_id]['current_partition']))
-        while self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
             partition = str(self.current_partition[consumer_id])
             self.current_partition[consumer_id] += 1
+            #print(type(self.__consumer[consumer_id]['current_partition']))
+            while self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
+                partition = str(self.current_partition[consumer_id])
+                self.current_partition[consumer_id] += 1
 
-        if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
-            if depth == 2:
-                return raise_error("Messages in all partitions exhausted")
+            if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
+                if depth == 2:
+                    return raise_error("Messages in all partitions exhausted")
 
-            self.get_updates()
-            return self.consume_message(topic, consumer_id, depth + 1)
-        
-        return self.consume_message_with_partition(topic, consumer_id, partition)
+                self.get_updates()
+                return self.consume_message(topic, consumer_id, depth + 1)
+            
+            return self.consume_message_with_partition(topic, consumer_id, partition)
+        except Exception as e:
+            print('exception:', e) 
 
 
     def __del__(self):

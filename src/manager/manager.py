@@ -29,8 +29,8 @@ class BrokerConnection:
 
     def get_updates(self):
         Queries = self.stub.GetUpdates(b_pb2.Request())
-        for q in Queries.queries:
-            print(q)
+        for q in Queries:
+            yield q.query
         # return Queries.queries
 
     def send_transaction(self, transaction):
@@ -134,16 +134,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             yield pb2.Query(query=q)
 
     def ReceiveUpdatesFromBroker(self,req, context):
-        transaction = {'req' : 'Poll'}
         for broker in self.brokers:
-            res = {}
+            res = None
             try:
-                res_temp = self.brokers[broker].send_transaction(transaction)
-                res.update(res_temp)
+                res = self.brokers[broker].get_updates()
             except :
                 pass
-            if len(res) > 0 and res["queries"]:
-                for query in res['queries']:
+            if res is not None:
+                for query in res:
+                    print(query)
                     self.__db.run_query(query)
         return pb2.UpdatesFromBroker()
 
@@ -351,19 +350,20 @@ class Manager:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
         self.__grpc_host =  grpc_host
         self.__grpc_port = grpc_port
-        # HTTP Endpoint
-        t = multiprocessing.Process(target=self.serve_endpoint, args=(
-            name, http_host, http_port, grpc_host, grpc_port
-        ))
-        t.start()
 
         # accept registrations from brokers in a different process
         server_thread = multiprocessing.Process(target=self.serve_grpc)
         server_thread.start()
 
-        time.sleep(2)
+        time.sleep(5)
         self_thread = multiprocessing.Process(target=self.call_brokers)
         self_thread.start()
+
+        # HTTP Endpoint
+        t = multiprocessing.Process(target=self.serve_endpoint, args=(
+            name, http_host, http_port, grpc_host, grpc_port
+        ))
+        t.start()
 
         t.join()
         server_thread.join()

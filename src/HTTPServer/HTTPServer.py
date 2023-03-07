@@ -163,7 +163,7 @@ class MyServerHandler:
             consumer_id  =  int(data_json['consumer_id'])
 
             # dequeue
-            transaction = {'req': 'Dequeue', 'consumer_id': consummer_id, 'topic': topic}
+            transaction = {'req': 'Dequeue', 'consumer_id': consumer_id, 'topic': topic}
             ret = self.manager_rpc.send_transaction(transaction)
 
             response.update(ret)
@@ -342,8 +342,14 @@ class MyServerHandler:
                            "producer_id": producer_id, "message": message}
             ret = self.manager_rpc.send_transaction(transaction)
             response.update(ret)
-            if response['status'] == 'success':
-                status = 200
+            
+            if 'status' not in response:
+                # incorrect params in data_json
+                response['status'] = 'failure'
+                response['message'] = 'byzentine fault!'
+            else:
+                if response['status'] == 'success':
+                    status = 200
         else:
             # incorrect params in data_json
             response['status'] = 'failure'
