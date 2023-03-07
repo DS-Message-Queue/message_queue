@@ -116,18 +116,19 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
     def process_transaction(self, transaction):
         req_type = transaction['req']
         if req_type == 'Enqueue':
-            res = self.publish_message(transaction["producer_id"],transaction["topic"], transaction["message"])
+            res = self.publish_message(
+                transaction["producer_id"], transaction["topic"], transaction["message"])
             return res
         elif req_type == 'CreateTopic':
             topic = transaction['topic']
             if topic not in self.__topics:
-                self.__topics[topic] = { str(self.broker_id) : {"messages": []}}
+                self.__topics[topic] = {str(self.broker_id): {"messages": []}}
             return {}
         elif req_type == 'ProducerRegister':
             topic = transaction['topic']
             producer_id = transaction['producer_id']
             if topic not in self.__topics:
-                self.__topics[topic] = {str(self.broker_id) : {"messages": []}}
+                self.__topics[topic] = {str(self.broker_id): {"messages": []}}
             if str(producer_id) not in self.__producers:
                 self.__producers[str(producer_id)] = {"topic": topic}
             return {}
@@ -138,7 +139,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         elif req_type == 'Poll':
             temp = self.__enqueue_logs.copy()
             self.__enqueue_logs.clear()
-            return {  "queries" : temp}
+            return {"queries": temp}
         else:
             return self.add_producer(transaction["pid"], transaction["topic"])
 
@@ -158,11 +159,21 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         if "topic" not in self.__producers[str(producer_id)] or self.__producers[str(producer_id)]["topic"] != topic_name:
             self.__publish_lock.release()
             return raise_error("Producer cannot publish to " + topic_name + ".")
-        self.__topics[topic_name][str(self.broker_id)]["messages"].append({
-            "message": message,
-            "subscribers": 0  # This will be updated at Replica
-        })
-        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM example_table WHERE topic_name = '"+ topic_name +"' and partition_id =" + str(self.broker_id) + ");")
+        if str(self.broker_id) in self.__topics[topic_name]:
+            self.__topics[topic_name][str(self.broker_id)]["messages"].append({
+                "message": message,
+                "subscribers": 0
+            })
+
+        else:
+            self.__topics[topic_name][str(self.broker_id)] = {
+                "messages": [{
+                    "message": message,
+                    "subscribers": 0
+                }]
+            }
+        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) +
+                                   " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + "' and partition_id =" + str(self.broker_id) + ");")
         self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
                                    message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
         res = raise_success("Message added successfully.")
