@@ -230,7 +230,7 @@ class ManagerConnection:
             position = 0
 
         self.insert_for_consumer(consumer_id, topic, position, partition)
-
+        # self.__consumer == {}
         self.initialize_dict()
         self.partition_id()
         self.__lock.release() 
@@ -239,6 +239,7 @@ class ManagerConnection:
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
     def list_topics(self):
+        self.get_updates()
         topics = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT DISTINCT(topic_name) from topic;")
@@ -251,9 +252,12 @@ class ManagerConnection:
             return raise_error("Lock cannot be acquired.")
 
         self.__lock.release()
+        if topics == []:
+            return raise_error("No topics found")
         return raise_success("Successfully fetched topics.", {"topics": topics})
 
     def list_partitions(self, topic):
+        self.get_updates()
         partition = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT partition_id from topic where topic_name = '" + topic + "';")
@@ -266,9 +270,11 @@ class ManagerConnection:
             return raise_error("Lock cannot be acquired.")
 
         self.__lock.release()
+        if (partition == []):
+            return raise_error("No partitions found")
         return raise_success("Successfully fetched Partitions for topic - " + topic, {"partitions": partition})
 
-    def consume_message_with_partition(self, topic, consumer_id, partition):
+    def consume_message_with_partition(self, topic, consumer_id, partition, depth = 0):
 
 
         isLockAvailable = self.__lock.acquire(blocking = False)
@@ -290,11 +296,20 @@ class ManagerConnection:
         if message_position >= len(self.__consumer[consumer_id][topic][partition]['message']):
             self.__lock.release()
             self.get_updates()
-            return raise_error("Messages exhausted")
+
+            if depth == 2:
+                return raise_error("No new message is published to " + topic_name + ", " + partition + ".")
+            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
+            
 
         if self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] == 0:
             self.__lock.release()
-            return raise_error("No subscribers found")
+
+            self.get_updates()
+            if depth == 2:
+                return raise_error("No subscribers found")
+            
+            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
         
 
         message = self.__consumer[consumer_id][topic][partition]['message'][message_position]
@@ -306,6 +321,8 @@ class ManagerConnection:
         self.conn.commit()
         self.curr.execute("Update message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + ";")
         self.conn.commit()
+        
+        # self.__consumer == {}
         self.initialize_dict()
         print(self.__consumer)
         self.__lock.release()
@@ -314,8 +331,8 @@ class ManagerConnection:
         })
 
 
-    def consume_message(self, topic, consumer_id):
-        
+    def consume_message(self, topic, consumer_id, depth = 0):
+
         if consumer_id not in self.__consumer:
             return raise_error("Consumer not found.")
 
@@ -327,7 +344,11 @@ class ManagerConnection:
             self.current_partition[consumer_id] += 1
 
         if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
-            return raise_error("Messages in all partitions exhausted")
+            if depth == 2:
+                return raise_error("Messages in all partitions exhausted")
+
+            self.get_updates()
+            return self.consume_message(topic, consumer_id, depth + 1)
         
         return self.consume_message_with_partition(topic, consumer_id, partition)
 
