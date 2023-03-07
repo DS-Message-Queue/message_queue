@@ -146,22 +146,27 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
         if transaction_type == 'GetTopics':
             output = {"status": "success", "topics": self.__topics}
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'GetPartition':
             topic_requested = transaction['topic']
             if topic_requested not in self.__topics:
                 output = {"status": "failure", "message": "Invalid Topic."}
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+            
             partitions = []
             for each_partition in self.__topics[topic_requested]:
                 partitions.append(each_partition)
             output = {"status": "success", "partitions": partitions,
                       "number_of_partitions": len(partitions)}
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'ClearDatabase':
             isLockAvailable = self.__lock.acquire(blocking=False)
             if isLockAvailable is False:
                 output = {"status": "failure",
                           "message": "Lock cannot be acquired."}
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
             try:
                 self.__db.clear_database()
                 output = {"status": "success",
@@ -169,21 +174,28 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             except:
                 output = {"status": "failure",
                           "message": "Couldn't clear database."}
+            self.__lock.release()
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'CreateTopic':
             isLockAvailable = self.__lock.acquire(blocking=False)
             if isLockAvailable is False:
                 output = {"status": "failure",
                           "message": "Lock cannot be acquired."}
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+            
             topic_requested = transaction['topic']
             if topic_requested in self.__topics:
                 output = {"status": "failure",
                           "message": "Topic already exists."}
+                self.__lock.release()
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+        
             else:
                 try:
                     # START THE WAL LOGGING
                     # Setting partition id default to 1
-                    txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
+                    # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
                     output_query = self.__db.insert_topic(
                         topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
@@ -197,11 +209,13 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                               "message": "Topic created."}
                     self.__queries.append(output_query)
 
-                    self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
+                    # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END WAL TRANSACTION
                 except:
                     output = {"status": "failure",
                               "message": "Topic creation failed."}
+                self.__lock.release()
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'ProducerRegister':
             topic_requested = transaction['topic']
@@ -209,17 +223,18 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             if isLockAvailable is False:
                 output = {"status": "failure",
                           "message": "Lock cannot be acquired."}
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
             if topic_requested not in self.__topics:
+                output = {}
                 try:
                     # Setting partition id default to 1
                     # START THE WAL LOGGING
-                    txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
+                    # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
                     output_query = self.__db.insert_topic(
                         topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
-                        input = {'req': transaction_type, "topic": topic_requested, "producer_id": len(
-                            self.__producers) + 1}
+                        input = {'req': "CreateTopic", "topic": topic_requested}
                         self.brokers[broker].send_transaction(input)
                         try:
                             self.__health_checker.insert_into_broker(broker,datetime.now())
@@ -227,11 +242,14 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                             pass
 
                     self.__queries.append(output_query)
-                    self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
+                    # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END THE WAL LOGGING
                 except:
                     output = {"status": "failure",
                               "message": "Producer Registration Failed."}
+            if len(output) > 0 and output["status"] == "failure":
+                self.__lock.release()
+                return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
             try:
                 # START THE WAL LOGGING
                 # txn_id = self.wal.logEvent(broker, "Register Producer", len(self.__producers) + 1, topic_requested)
@@ -266,34 +284,38 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 print('exception:', e)
                 output = {"status": "failure",
                           "message": "Producer Registration Failed."}
+            self.__lock.release()
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'Enqueue':
-
             for _i in range(self.total_brokers_connected):
-                broker = self.pick_broker(self)
+                broker = self.pick_broker()
                 if broker == 0:
                     output = {"status": "failure",
                               "message": "No brokers to handle request."}
+                    break
                 else:
                     try:
                         # START THE WAL LOGGING
-                        txn_id = self.wal.logEvent(broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
+                        # txn_id = self.wal.logEvent(broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         output = self.brokers[broker].send_transaction(transaction)
+                        print("output",output)
                         try:
                             self.__health_checker.insert_into_broker(broker,datetime.now())
                             self.__health_checker.insert_into_producer(transaction['producer_id'],datetime.now())
                         except:
                             pass
+                        # self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         break
-                        self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
                         # END THE WAL LOGGING
                     except:
                         self.brokers.pop(broker, None)
                         continue
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         else:
             output = {"status": "failure", "message": "Invalid Operation"}
-        return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
     def pick_broker(self):
         self.__lock.acquire(blocking=True)
@@ -337,7 +359,6 @@ class Manager:
         self_thread.join()
     
     def call_brokers(self):
-        print("This gets called")
         own_manager_rpc = SelfManagerConnection(self.__grpc_host, self.__grpc_port)
         while(1):
             own_manager_rpc.send_transaction({})

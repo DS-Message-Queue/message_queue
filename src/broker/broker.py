@@ -116,7 +116,8 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
     def process_transaction(self, transaction):
         req_type = transaction['req']
         if req_type == 'Enqueue':
-            return self.publish_message(transaction["topic"], transaction["producer_id"], transaction["message"])
+            res = self.publish_message(transaction["producer_id"],transaction["topic"], transaction["message"])
+            return res
         elif req_type == 'CreateTopic':
             topic = transaction['topic']
             if topic not in self.__topics:
@@ -151,23 +152,22 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         if topic_name not in self.__topics:
             self.__publish_lock.release()
             return raise_error("Topic " + topic_name + " doesn't exist.")
-        if producer_id not in self.__producers:
+        if str(producer_id) not in self.__producers:
             self.__publish_lock.release()
             return raise_error("Producer doesn't exist.")
-        if "topic" not in self.__producers[producer_id] or self.__producers[producer_id]["topic"] != topic_name:
+        if "topic" not in self.__producers[str(producer_id)] or self.__producers[str(producer_id)]["topic"] != topic_name:
             self.__publish_lock.release()
             return raise_error("Producer cannot publish to " + topic_name + ".")
-        self.__topics[topic_name][self.broker_id]["messages"].append({
+        self.__topics[topic_name][str(self.broker_id)]["messages"].append({
             "message": message,
             "subscribers": 0  # This will be updated at Replica
         })
-        # TODO: Check the correct query.
         self.__enqueue_logs.append(
-            "INSERT INTO topic(topic_name, partition) VALUES('" + topic_name + "', " + str(self.broker_id) + ");")
-        self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition, subscribers) VALUES('" +
-                                   message + "', '" + topic_name + "', " + str(self.broker_id) + "', " + str(0) + ");")
-        self.__publish_lock.release()
-        return raise_success("Message " + message + " added successfully to partition " + self.broker_id + " of topic " + topic_name + ".")
+            "INSERT INTO topic(topic_name, partition_id,bias) VALUES('" + topic_name + "', " + str(self.broker_id) + " ,'0' );")
+        self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
+                                   message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
+        res = raise_success("Message added successfully.")
+        return res
 
 
 class Broker:
