@@ -136,9 +136,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
     def ReceiveUpdatesFromBroker(self,req, context):
         transaction = {'req' : 'Poll'}
         for broker in self.brokers:
-            res = self.brokers[broker].send_transaction(transaction)
-            for query in res['queries']:
-                self.__db.run_query(query)
+            res = {}
+            try:
+                res_temp = self.brokers[broker].send_transaction(transaction)
+                res.update(res_temp)
+            except :
+                pass
+            if len(res) > 0 and res["queries"]:
+                for query in res['queries']:
+                    self.__db.run_query(query)
         return pb2.UpdatesFromBroker()
 
     def SendTransaction(self, transaction_req, context):
@@ -201,15 +207,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     # START THE WAL LOGGING
                     # Setting partition id default to 1
                     # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
-                    output_query = self.__db.insert_topic(
-                        topic_requested, 1, 0)
-                    self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
                         try:
                             self.__health_checker.insert_into_broker(broker,datetime.now())
                         except:
                             pass
+                    output_query = self.__db.insert_topic(
+                        topic_requested, 1, 0)
+                    self.__topics[topic_requested] = {1: {"messages": []}}
                     output = {"status": "success",
                               "message": "Topic created."}
                     self.__queries.append(output_query)

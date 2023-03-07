@@ -121,15 +121,15 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         elif req_type == 'CreateTopic':
             topic = transaction['topic']
             if topic not in self.__topics:
-                self.__topics[topic] = {self.broker_id: {"messages": []}}
+                self.__topics[topic] = { str(self.broker_id) : {"messages": []}}
             return {}
         elif req_type == 'ProducerRegister':
             topic = transaction['topic']
             producer_id = transaction['producer_id']
             if topic not in self.__topics:
-                self.__topics[topic] = {self.broker_id: {"messages": []}}
-            if producer_id not in self.__producers:
-                self.__producers[producer_id] = {"topic": topic}
+                self.__topics[topic] = {str(self.broker_id) : {"messages": []}}
+            if str(producer_id) not in self.__producers:
+                self.__producers[str(producer_id)] = {"topic": topic}
             return {}
         elif req_type == 'Init':
             self.__topics = transaction['topics']
@@ -162,11 +162,11 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             "message": message,
             "subscribers": 0  # This will be updated at Replica
         })
-        self.__enqueue_logs.append(
-            "INSERT INTO topic(topic_name, partition_id,bias) VALUES('" + topic_name + "', " + str(self.broker_id) + " ,'0' );")
+        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM example_table WHERE topic_name = '"+ topic_name +"' and partition_id =" + str(self.broker_id) + ");")
         self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
                                    message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
         res = raise_success("Message added successfully.")
+        self.__publish_lock.release()
         return res
 
 
