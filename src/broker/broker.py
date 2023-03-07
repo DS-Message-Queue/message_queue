@@ -120,13 +120,13 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         elif req_type == 'CreateTopic':
             topic = transaction['topic']
             if topic not in self.__topics:
-                self.__topics[topic][self.broker_id] = {"messages": []}
+                self.__topics[topic] = {self.broker_id: {"messages": []}}
             return {}
         elif req_type == 'ProducerRegister':
             topic = transaction['topic']
             producer_id = transaction['producer_id']
             if topic not in self.__topics:
-                self.__topics[topic][self.broker_id] = {"messages": []}
+                self.__topics[topic] = {self.broker_id: {"messages": []}}
             if producer_id not in self.__producers:
                 self.__producers[producer_id] = {"topic": topic}
             return {}
