@@ -50,13 +50,13 @@ class MyServerHandler:
         def __get_partition():
             return self.get_partition()
 
-        # @self.app.route('/consumer/consume')
-        # def __dequeue():
-        #     return self.dequeue()
+        @self.app.route('/consumer/consume')
+        def __dequeue():
+            return self.dequeue()
 
-        # @self.app.route('/size')
-        # def __size():
-        #     return self.size()
+        @self.app.route('/size')
+        def __size():
+            return self.size()
 
         @self.app.route('/cleardb')
         def __clear_db():
@@ -66,9 +66,9 @@ class MyServerHandler:
         def __create_topic():
             return self.create_topic()
 
-        # @self.app.route('/consumer/register', methods=['POST'])
-        # def __consumer_register():
-        #     return self.consumer_register()
+        @self.app.route('/consumer/register', methods=['POST'])
+        def __consumer_register():
+            return self.consumer_register()
 
         @self.app.route('/producer/register', methods=['POST'])
         def __producer_register():
@@ -128,87 +128,87 @@ class MyServerHandler:
         response = json.dumps(response)
         return response, status
 
-    # def dequeue(self):
-    #     # dequeue
-    #     print("dequeue requested")
-    #     json_is_valid = True
-    #     data_json = dict(request.args)
-    #     response = {}
-    #     print(data_json)
-    #     status = 400
-    #     if len(data_json) == 0:
-    #         print('invalid data in params')
-    #         response['status'] = 'failure'
-    #         response['message'] = 'invalid data in params'
-    #         json_is_valid = False
+    def dequeue(self):
+        # dequeue
+        print("dequeue requested")
+        json_is_valid = True
+        data_json = dict(request.args)
+        response = {}
+        print(data_json)
+        status = 400
+        if len(data_json) == 0:
+            print('invalid data in params')
+            response['status'] = 'failure'
+            response['message'] = 'invalid data in params'
+            json_is_valid = False
 
-    #     if json_is_valid and len(data_json) == 3 and 'topic' in data_json \
-    #                                                 and 'consumer_id' in data_json:
-    #         topic        =  data_json['topic']
-    #         consumer_id  =  int(data_json['consumer_id'])
-    #         partition = int(data_json['partition'])
+        if json_is_valid and len(data_json) == 3 and 'topic' in data_json \
+                                                    and 'consumer_id' in data_json:
+            topic        =  data_json['topic']
+            consumer_id  =  int(data_json['consumer_id'])
+            partition = int(data_json['partition'])
 
-    #         # dequeue
-    #         transaction = {'req': 'DequeueWithPartition', 'consumer_id': consumer_id, 'topic': topic, 'partition': partition}
-    #         ret = self.manager_rpc.send_transaction(transaction)
+            # dequeue
+            transaction = {'req': 'DequeueWithPartition', 'consumer_id': consumer_id, 'topic': topic, 'partition': partition}
+            ret = self.manager_rpc.send_transaction(transaction)
 
-    #         response.update(ret)
+            response.update(ret)
 
-    #         if response['status'] == 'success':
-    #             status = 200
+            if response['status'] == 'success':
+                status = 200
 
-    #     if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
-    #                                                 and 'consumer_id' in data_json:
-    #         topic        =  data_json['topic']
-    #         consumer_id  =  int(data_json['consumer_id'])
+        if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
+                                                    and 'consumer_id' in data_json:
+            topic        =  data_json['topic']
+            consumer_id  =  int(data_json['consumer_id'])
 
-    #         # dequeue
-    #         transaction = {'req': 'Dequeue', 'consumer_id': consummer_id, 'topic': topic}
-    #         ret = self.manager_rpc.send_transaction(transaction)
+            # dequeue
+            transaction = {'req': 'Dequeue', 'consumer_id': consummer_id, 'topic': topic}
+            ret = self.manager_rpc.send_transaction(transaction)
 
-    #         response.update(ret)
+            response.update(ret)
 
-    #         if response['status'] == 'success':
-    #             status = 200
+            if response['status'] == 'success':
+                status = 200
 
-    #         else:
-    #             # incorrect params in data_json
-    #             response['status'] = 'failure'
-    #             response['message'] = 'invalid data in params'
+            else:
+                # incorrect params in data_json
+                response['status'] = 'failure'
+                response['message'] = 'invalid data in params'
 
-    #     response = json.dumps(response)
-    #     return response, status
+        response = json.dumps(response)
+        return response, status
 
-    # def size(self):
-    #     # size
-    #     print("size requested")
-    #     json_is_valid = True
-    #     data_json = dict(request.args)
-    #     response = {}
-    #     status = 400
-    #     if len(data_json) == 0:
-    #         print('invalid params given')
-    #         json_is_valid = False
+    def size(self):
+        # size
+        print("size requested")
+        json_is_valid = True
+        data_json = dict(request.args)
+        response = {}
+        status = 400
+        if len(data_json) == 0:
+            print('invalid params given')
+            json_is_valid = False
 
-    #     if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
-    #                                                 and 'consumer_id' in data_json:
-    #         topic        =  data_json['topic']
-    #         consumer_id  =  int(data_json['consumer_id'])
+        if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
+                                                    and 'consumer_id' in data_json:
+            topic        =  data_json['topic']
+            consumer_id  =  int(data_json['consumer_id'])
 
-    #         # size
-    #         # ret = message_queue.log_size(topic,consumer_id)
-    #         ret = {}
-    #         response.update(ret)
-    #         if response['status'] == 'success':
-    #             status = 200
+            # size
+            # ret = message_queue.log_size(topic,consumer_id)
+            ret = {}
+            response.update(ret)
+            if response['status'] == 'success':
+                status = 200
 
-    #     else:
-    #         # incorrect params in data_json
-    #         response['status'] = 'failure'
-    #         response['message'] = 'invalid data in params'
+        else:
+            # incorrect params in data_json
+            response['status'] = 'failure'
+            response['message'] = 'invalid data in params'
 
-    #     response = json.dumps(response)
-    #     return response, status
+        response = json.dumps(response)
+        return response, status
 
     def clear_db(self):
         print('clear requested')
@@ -254,39 +254,39 @@ class MyServerHandler:
         response = json.dumps(response)
         return response, status
 
-    # def consumer_register(self):
-    #     # consumer register
-    #     print("consumer register requested")
+    def consumer_register(self):
+        # consumer register
+        print("consumer register requested")
 
-    #     data = request.data
-    #     response = {}
-    #     status = 400
-    #     json_is_valid = True
-    #     data_json = {}
-    #     try:
-    #         data_json = json.loads(data)
-    #     except json.decoder.JSONDecodeError:
-    #         print('JSON decode failed')
-    #         json_is_valid = False
+        data = request.data
+        response = {}
+        status = 400
+        json_is_valid = True
+        data_json = {}
+        try:
+            data_json = json.loads(data)
+        except json.decoder.JSONDecodeError:
+            print('JSON decode failed')
+            json_is_valid = False
 
-    #     if json_is_valid and len(data_json) == 1 and 'topic' in data_json:
-    #         topic = data_json['topic']
+        if json_is_valid and len(data_json) == 1 and 'topic' in data_json:
+            topic = data_json['topic']
 
-    #         # generate consumer_id
-    #         # ret = message_queue.register_consumer(topic)
-    #         transaction = {'req': 'ConsumerRegister', 'topic': topic}
-    #         ret = self.manager_rpc.send_transaction(transaction)
-    #         response.update(ret)
-    #         if response['status'] == 'success':
-    #             status = 200
+            # generate consumer_id
+            # ret = message_queue.register_consumer(topic)
+            transaction = {'req': 'ConsumerRegister', 'topic': topic}
+            ret = self.manager_rpc.send_transaction(transaction)
+            response.update(ret)
+            if response['status'] == 'success':
+                status = 200
 
-    #     else:
-    #         # only accept one topic in data_json
-    #         response['status'] = 'failure'
-    #         response['message'] = 'invalid data in params'
+        else:
+            # only accept one topic in data_json
+            response['status'] = 'failure'
+            response['message'] = 'invalid data in params'
 
-    #     response = json.dumps(response)
-    #     return response, status
+        response = json.dumps(response)
+        return response, status
 
     def producer_register(self):
         # producer register

@@ -44,7 +44,6 @@ class ManagerConnection:
 
         self.curr = self.conn.cursor()
         self.create_tables(self.conn)
-        self.del_database()
         self.__lock = threading.Lock()
 
         self.current_partition = {}
@@ -83,6 +82,8 @@ class ManagerConnection:
         self.curr = self.conn.cursor()
         self.curr.execute("truncate table topic, consumer, producer, message;")
         self.conn.commit()
+        self.__consumer = {}
+        self.current_partition = {}
 
     def health_check(self):
         """
@@ -119,6 +120,7 @@ class ManagerConnection:
         """
             Get updates from the manager
         """
+        print('getting updates from manager...')
         while True:
             try:
                 Queries = self.stub.GetUpdates(m_pb2.Request())
@@ -130,6 +132,7 @@ class ManagerConnection:
             except:
                 self.register_replica_if_required()
                 continue
+        print('done.')
 
         self.initialize_dict()
 
@@ -142,7 +145,6 @@ class ManagerConnection:
 
         for consumer in result_consumer:
             if consumer[0] not in self.__consumer:
-                print("I am here")
                 self.__consumer[str(consumer[0])] = {}
 
         for consumer in self.__consumer:
@@ -209,11 +211,11 @@ class ManagerConnection:
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
-
+        
         if topic not in topics:
             self.__lock.release()
             return raise_error("Topic doesn't exist.")
-        
+
         consumer_id = len(self.__consumer) + 1
         
 
@@ -393,23 +395,24 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
                     
             # Generating unique Id for a consumer
             
-            return self.manager.consumer_register(topic) 
-
-            response = {'status': 'Success', 'Message': 'Successfully executed!'}
+            response = self.manager.consumer_register(topic)
+            if response['message'] == "Topic doesn't exist.":
+                self.manager.get_updates()
+                return self.manager.consumer_register(topic)
             return response
 
-        if transaction['req'] == 'GetTopics':
+        elif transaction['req'] == 'GetTopics':
             # self.manager.get_updates()
 
             return self.manager.list_topics()
 
-        if transaction['req'] == 'GetPartition':
+        elif transaction['req'] == 'GetPartition':
             # self.manager.get_updates()
 
             topic = transaction['topic']
             return self.manager.list_partitions(topic)
 
-        if transaction['req'] == 'DequeueWithPartition':
+        elif transaction['req'] == 'DequeueWithPartition':
             # self.manager.get_updates()
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
@@ -417,11 +420,22 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
 
             return self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
 
-        if transaction['req'] == 'Dequeue':
+        elif transaction['req'] == 'Dequeue':
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
 
             return self.manager.consume_message(topic, str(consumer_id))
+
+        elif transaction['req'] == 'ClearDatabase':
+            try:
+                self.manager.del_database()
+                output = {"status": "success",
+                          "message": "Database Cleared successfully."}
+            except:
+                output = {"status": "failure",
+                          "message": "Couldn't clear database."}
+            self.__lock.release()
+            return m_pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
 class ManagerReplica:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):

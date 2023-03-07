@@ -128,7 +128,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         return pb2.Response()
 
     def GetUpdates(self, request, context):
-        for q in self.__queries:
+        queries = self.__queries[:]
+        self.__queries.clear()
+        for q in queries:
             yield pb2.Query(query=q)
 
     def ReceiveUpdatesFromBroker(self,req, context):
@@ -169,6 +171,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
             try:
                 self.__db.clear_database()
+                self.__topics = {}
+                self.__consumers = {}
+                self.__producers = {}
                 output = {"status": "success",
                           "message": "Database Cleared successfully."}
             except:
