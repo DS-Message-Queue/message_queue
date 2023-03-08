@@ -145,6 +145,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             if res is not None:
                 for query in res:
                     self.__db.run_query(query)
+                    self.__queries.append(query)
         return pb2.UpdatesFromBroker()
 
     def SendTransaction(self, transaction_req, context):

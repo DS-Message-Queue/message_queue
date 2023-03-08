@@ -126,10 +126,28 @@ class ManagerConnection:
                 Queries = self.stub.GetUpdates(m_pb2.Request())
                 self.curr = self.conn.cursor()
                 for q in Queries:
-                    self.curr.execute(q.query)
+                    query = q.query
+                    if 'INSERT INTO message' in query:
+                        final_query = 'INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('
+                        length = len(final_query)
+                        query = query[length: -1]
+                        line = query.split(',')
+                        topic_name = line[1].strip()
+                        partition_id = line[2].strip()
+                        message = line[0].strip()
+                        count = 0
+                        for consumer in self.__consumer:
+                            if topic_name[1:-1] in self.__consumer[consumer]:
+                                count += 1
+
+                        final_query += message + ', ' + topic_name + ', ' + partition_id + ', ' + str(count) + ');'
+                        query = final_query
+                    self.curr.execute(query)
                     self.conn.commit()
+                print('done')
                 break
-            except:
+            except Exception as e:
+                print('exception:', e)
                 self.register_replica_if_required()
                 continue
         print('done.')
@@ -175,15 +193,15 @@ class ManagerConnection:
         self.curr =  self.conn.cursor()
 
         for i in range(len(partition)):
-            print(position)
             if position == 0:
                 self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(0) + ", " + str(partition[i]) + ");")    
+                self.conn.commit()
             else:
                 self.curr.execute("UPDATE message set subscribers = subscribers + 1 WHERE topic_name = '" + topic + "' and partition_id = " + str(partition[i]) + ";")            
                 self.conn.commit()
                 self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(position[i]) + ", " + str(partition[i]) + ");")
 
-            self.conn.commit()
+                self.conn.commit()
             # self.__consumer[consumer_id][topic][partition]['subscribers'][position] += 1
             
     def partition_id(self):
@@ -199,6 +217,9 @@ class ManagerConnection:
         for res in result:
             res = list(res)
             topics.append(res[0])
+        
+        if topic not in topics:
+            return raise_error("Topic doesn't exist.")
 
         self.curr.execute("SELECT partition_id from topic where topic_name = '" + topic + "';")
         result = self.curr.fetchall()
@@ -211,28 +232,24 @@ class ManagerConnection:
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
-        
-        if topic not in topics:
-            self.__lock.release()
-            return raise_error("Topic doesn't exist.")
 
         consumer_id = len(self.__consumer) + 1
         
-
         position = []
         if len(self.__consumer) != 0:
-            partition = []
             for i in self.__consumer:
                 if topic in self.__consumer[i]:
                     for j in self.__consumer[i][topic]:
-                        partition.append(j)
                         position.append(len(self.__consumer[i][topic][j]['message']))
 
         if position == []:
             position = 0
 
+        print('partition:', partition)
+        print('insert start')
         self.insert_for_consumer(consumer_id, topic, position, partition)
-        # self.__consumer == {}
+        print('insert end')
+        # self.__consumer = {}
         self.initialize_dict()
         self.partition_id()
         self.__lock.release() 
@@ -276,53 +293,40 @@ class ManagerConnection:
             return raise_error("No partitions found")
         return raise_success("Successfully fetched Partitions for topic - " + topic, {"partitions": partition})
 
-    def consume_message_with_partition(self, topic, consumer_id, partition, depth = 0):
-
-
+    def consume_message_with_partition(self, topic, consumer_id, partition):
+        partition = str(partition)
         isLockAvailable = self.__lock.acquire(blocking = False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
 
         if partition not in self.__consumer[consumer_id][topic]:
             self.__lock.release()
-            return raise_error("Partition Not Found")
+            return raise_error("Partition " + partition + " Not Found")
 
         message_position = self.__consumer[consumer_id][topic][partition]['position']
         print(message_position)
 
         if self.__consumer == {}:
             self.__lock.release()
-            # self.get_updates()
             return raise_error("No consumer found")
 
-        if message_position >= len(self.__consumer[consumer_id][topic][partition]['message']):
+        if message_position >= len(self.__consumer[consumer_id][topic][partition]['message']) \
+        or self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] == 0:
             self.__lock.release()
-            self.get_updates()
-
-            if depth == 2:
-                return raise_error("No new message is published to " + topic + ", " + partition + ".")
-            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
-            
-
-        if self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] == 0:
-            self.__lock.release()
-
-            self.get_updates()
-            if depth == 2:
-                return raise_error("No subscribers found")
-            
-            return self.consume_message_with_partition(topic, consumer_id, partition, depth + 1)
+            return raise_error("No new message is published to " + topic + ", " + partition + ".")
         
 
         message = self.__consumer[consumer_id][topic][partition]['message'][message_position]
         self.__consumer[consumer_id][topic][partition]['position'] = self.__consumer[consumer_id][topic][partition]['position'] + 1
         self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] -= 1
 
+        print('sql call start')
         self.curr = self.conn.cursor()
         self.curr.execute("UPDATE consumer set position = " + str(self.__consumer[consumer_id][topic][partition]['position']) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
         self.conn.commit()
         self.curr.execute("Update message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + ";")
         self.conn.commit()
+        print('sql call end')
         
         # self.__consumer == {}
         self.initialize_dict()
@@ -333,30 +337,40 @@ class ManagerConnection:
         })
 
 
-    def consume_message(self, topic, consumer_id, depth = 0):
+    def consume_message(self, topic, consumer_id):
         try:
             if consumer_id not in self.__consumer:
                 return raise_error("Consumer not found.")
+            
+            topics = []
+            self.curr = self.conn.cursor()
+            self.curr.execute("SELECT * from topic;")
+            result = self.curr.fetchall()
+
+            for res in result:
+                res = list(res)
+                topics.append(res[0])
+            
+            if topic not in topics:
+                return raise_error("Topic doesn't exist.")
 
             self.curr.execute("SELECT * from topic WHERE topic_name = '" + topic + "';")
             result = self.curr.fetchall()
             partition = 1
             
+            response = {}
             for res in result:
                 partition = res[2]
-                if self.consume_message_with_partition(topic, consumer_id, partition) == {"status": "failure", "message": "Messages exhausted"}:
+                response = self.consume_message_with_partition(topic, consumer_id, partition)
+                if "No new message is published to" in response["message"]:
                     continue
                 else:
                     break
 
-            if self.consume_message_with_partition(topic, consumer_id, partition) == {'status': 'failure', 'message': 'Partition Not Found'}:
-                if depth == 2:
-                    return raise_error("Messages in all partitions exhausted")
-
-                self.get_updates()
-                return self.consume_message(topic, consumer_id, depth + 1)
-            
-            return self.consume_message_with_partition(topic, consumer_id, partition)
+            if "No new message is published to" in response["message"]:
+                    return raise_error("No new message is published to " + topic + ".")
+            return response
+        
         except Exception as e:
             print('exception:', e) 
 
@@ -396,41 +410,39 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
         print(transaction)
         
         if transaction['req'] == "ConsumerRegister":
-            # self.manager.get_updates()
-            topic = transaction['topic']
-                    
-            # Generating unique Id for a consumer
-            
-            response = self.manager.consumer_register(topic)
-            if response['message'] == "Topic doesn't exist.":
-                self.manager.get_updates()
-                return self.manager.consumer_register(topic)
+            self.manager.get_updates()
+            response = self.manager.consumer_register(transaction['topic'])
             return response
 
         elif transaction['req'] == 'GetTopics':
-            # self.manager.get_updates()
-
+            self.manager.get_updates()
             return self.manager.list_topics()
 
         elif transaction['req'] == 'GetPartition':
-            # self.manager.get_updates()
-
             topic = transaction['topic']
+            self.manager.get_updates()
             return self.manager.list_partitions(topic)
 
         elif transaction['req'] == 'DequeueWithPartition':
-            # self.manager.get_updates()
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
             partition = transaction['partition']
 
-            return self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
+            response = self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
+            if "No new message is published to" in response["message"]:
+                self.manager.get_updates()
+                return self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
+            return response
 
         elif transaction['req'] == 'Dequeue':
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
 
-            return self.manager.consume_message(topic, str(consumer_id))
+            response = self.manager.consume_message(topic, str(consumer_id))
+            if "No new message is published to" in response["message"]:
+                self.manager.get_updates()
+                return self.manager.consume_message(topic, str(consumer_id))
+            return response
 
         elif transaction['req'] == 'ClearDatabase':
             output = {}

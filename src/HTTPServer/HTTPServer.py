@@ -340,6 +340,7 @@ class MyServerHandler:
             
             if 'status' not in response:
                 # incorrect params in data_json
+                print('invalid response received from rpc server:', response)
                 response['status'] = 'failure'
                 response['message'] = 'byzentine fault!'
             else:
