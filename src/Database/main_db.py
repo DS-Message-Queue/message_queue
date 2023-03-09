@@ -183,9 +183,10 @@ class databases:
             for message in result_messaging:
                 messaging.append({"message" : message[0], "subscribers" : message[2]})
 
-            __topics[topic[0]][topic[2]]["messages"] = messaging
-            __topics[topic[0]][topic[2]]["bias"] = topic[1]
-            
+            __topics[topic[0]][topic[2]] = {
+                "messages" : messaging,
+                "bias" : topic[1]
+            }
             
 
         for producer in result_producer:

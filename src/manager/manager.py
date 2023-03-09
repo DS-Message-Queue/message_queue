@@ -34,11 +34,9 @@ class BrokerConnection:
         # return Queries.queries
 
     def send_transaction(self, transaction):
-        print("Here",transaction)
         Response = self.stub.SendTransaction(b_pb2.Transaction(
             data=bytes(json.dumps(transaction).encode('utf-8'))
         ))
-        print("Done",transaction)
         response = json.loads(Response.data)
         return response
     
@@ -130,6 +128,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         return pb2.Response()
 
     def GetUpdates(self, request, context):
+        self.ReceiveUpdatesFromBroker(pb2.UpdatesFromBroker())
         queries = self.__queries[:]
         self.__queries.clear()
         for q in queries:
