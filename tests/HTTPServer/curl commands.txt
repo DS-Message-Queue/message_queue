@@ -22,6 +22,6 @@ curl -H 'Content-Type: application/json' \
       -X POST \
       127.0.0.1:8002/producer/produce
 
-curl -X GET '127.0.0.1:8001/consumer/consume?topic=foo&consumer_id=5'
+curl -X GET '127.0.0.1:8001/consumer/consume?topic=T-1&consumer_id=1'
 
 curl -X GET '127.0.0.1:8001/consumer/consume?consumer_id=1&topic=T-1&partition=2'

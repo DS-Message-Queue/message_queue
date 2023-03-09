@@ -75,7 +75,7 @@ class ManagerConnection:
         self.curr.execute("CREATE TABLE IF NOT EXISTS consumer(c_id INT, topic_name VARCHAR(255),position INT, partition_id INT)")
         self.conn.commit()
 
-        self.curr.execute("CREATE TABLE IF NOT EXISTS message(message varchar(255), topic_name VARCHAR(255), subscribers INT, partition_id INT)")
+        self.curr.execute("CREATE TABLE IF NOT EXISTS message(m_id serial, message varchar(255), topic_name VARCHAR(255), subscribers INT, partition_id INT)")
         self.conn.commit()
 
     def del_database(self):
@@ -171,7 +171,7 @@ class ManagerConnection:
             for res in result:
                 self.curr.execute("SELECT bias FROM topic where topic_name = '" + str(res[0]) + "' and partition_id = " + str(res[2]))
                 result_for_partition = self.curr.fetchall()
-                self.curr.execute("SELECT message, subscribers from message where topic_name = '" + str(res[0]) + "' and partition_id = " + str(res[2]))
+                self.curr.execute("SELECT message, subscribers from message where topic_name = '" + str(res[0]) + "' and partition_id = " + str(res[2]) + " order by m_id asc;")
                 result_message = self.curr.fetchall()
                 message = []
                 subscribers = []
@@ -197,9 +197,9 @@ class ManagerConnection:
                 self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(0) + ", " + str(partition[i]) + ");")    
                 self.conn.commit()
             else:
-                self.curr.execute("UPDATE message set subscribers = subscribers + 1 WHERE topic_name = '" + topic + "' and partition_id = " + str(partition[i]) + ";")            
+                self.curr.execute("UPDATE message set subscribers = subscribers + 1 WHERE topic_name = '" + topic + "' and partition_id = " + str(partition[i]))            
                 self.conn.commit()
-                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(position[i]) + ", " + str(partition[i]) + ");")
+                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(position) + ", " + str(partition[i]) + ");")
 
                 self.conn.commit()
             # self.__consumer[consumer_id][topic][partition]['subscribers'][position] += 1
@@ -235,12 +235,12 @@ class ManagerConnection:
 
         consumer_id = len(self.__consumer) + 1
         
-        position = []
+        position = 0
         if len(self.__consumer) != 0:
             for i in self.__consumer:
                 if topic in self.__consumer[i]:
                     for j in self.__consumer[i][topic]:
-                        position.append(len(self.__consumer[i][topic][j]['message']))
+                        position = len(self.__consumer[i][topic][j]['message'])
 
         if position == []:
             position = 0
@@ -324,7 +324,7 @@ class ManagerConnection:
         self.curr = self.conn.cursor()
         self.curr.execute("UPDATE consumer set position = " + str(self.__consumer[consumer_id][topic][partition]['position']) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
         self.conn.commit()
-        self.curr.execute("Update message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + ";")
+        self.curr.execute("UPDATE message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + " and message = '" + message + "';")
         self.conn.commit()
         print('sql call end')
         
