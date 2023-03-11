@@ -128,7 +128,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         return pb2.Response()
 
     def GetUpdates(self, request, context):
-        self.ReceiveUpdatesFromBroker(pb2.UpdatesFromBroker())
+        self.ReceiveUpdatesFromBroker(pb2.UpdatesFromBroker(), context)
         queries = self.__queries[:]
         self.__queries.clear()
         for q in queries:
