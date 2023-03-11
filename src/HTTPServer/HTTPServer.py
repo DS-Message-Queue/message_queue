@@ -1,15 +1,43 @@
 from flask import Flask, request
 from src.controller.main import Message_Queue
+import src.protos.managerservice_pb2_grpc as pb2_grpc
+import src.protos.managerservice_pb2 as pb2
+import grpc
 import json
 import re
 
+
 message_queue = Message_Queue()
 
+class ManagerConnection:
+    """
+    Client for gRPC functionality
+    """
+
+    def __init__(self, server_host, server_port):
+        
+        # instantiate a channel
+        self.channel = grpc.insecure_channel(
+            '{}:{}'.format(server_host, server_port))
+
+        # bind the client and the server
+        self.stub = pb2_grpc.ManagerServiceStub(self.channel)
+
+    def send_transaction(self, transaction):
+        Response = self.stub.SendTransaction(pb2.Transaction(
+            data = bytes(json.dumps(transaction).encode('utf-8'))
+        ))
+        response = json.loads(Response.data)
+        print(response)
+        #return response
+
 class MyServerHandler:
-    def __init__(self, name):
+    def __init__(self, name, grpc_host, grpc_port):
         # Connect to db server here and store necessary variables in self
         # Be aware that this gets called everytime an HTTP request is made
         # So maybe there is a better place for it
+
+        self.manager_rpc = ManagerConnection(grpc_host, grpc_port)
 
         self.app = Flask(name)
         
@@ -52,7 +80,6 @@ class MyServerHandler:
 
     # def __del__(self):
     #    # close connection to db here
-
     
     def get_topics(self):
         # ListTopics
@@ -65,6 +92,14 @@ class MyServerHandler:
         ret = message_queue.list_topics()
         
         response.update(ret)
+
+        #------------------------------------------------------------------
+        # Example usage
+
+        # transaction = {'req': 'Enqueue', 'pid': 12, 'topic': 'foo', 'partition': 'B', 'message': 'test'}
+        # self.manager_rpc.send_transaction(transaction)
+
+        #------------------------------------------------------------------
 
         status = 400
         if response['status'] == 'success':
@@ -293,8 +328,8 @@ class MyServerHandler:
     
 
 class MyServer:
-    def __init__(self, name):
+    def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
         print("Starting Server..")
-        server = MyServerHandler(name)
-        print("Server is running on 127.0.0.1:8002")
-        server.run('127.0.0.1', '8002')
+        server = MyServerHandler(name, grpc_host, grpc_port)
+        print("Server is running on " + http_host + ":" + http_port)
+        server.run(http_host, http_port)
