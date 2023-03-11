@@ -10,13 +10,12 @@ class CrashRecovery():
             for log in logs:
                 if log_type in log:
                     words = log.strip().split(" - ")
-                    print('log:', log)
-                    print('words:', words)
                     txn_id = words[1]
                     if txn_id not in log_map:
                         log_map[txn_id] = ' '.join(words[3:])
                     else:
-                        print('pop:', txn_id)
                         log_map.pop(txn_id)
-        
-        return list(log_map.values())
+        ret = []
+        for k, v in log_map.items():
+            ret.append((k, v))
+        return ret
