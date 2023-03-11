@@ -83,7 +83,7 @@ class MyConsumer():
         tries = 30
         while tries:
             if r.status_code == 400 and "Lock cannot be acquired." in r.text:
-                r = requests.post(url, json = payload)
+                r = requests.get(url, params = payload)
                 data = r.json()
             else:
                 break

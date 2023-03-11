@@ -245,8 +245,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     # Setting partition id default to 1
                     # START THE WAL LOGGING
                     # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
-                    output_query = self.__db.insert_topic(
-                        topic_requested, 1, 0)
+                    # output_query = self.__db.insert_topic(
+                    #     topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         input = {'req': "CreateTopic", "topic": topic_requested}
@@ -256,7 +256,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         except:
                             pass
 
-                    self.__queries.append(output_query)
+                    # self.__queries.append(output_query)
                     # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END THE WAL LOGGING
                 except:

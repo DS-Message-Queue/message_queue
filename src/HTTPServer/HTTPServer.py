@@ -157,7 +157,7 @@ class MyServerHandler:
             if response['status'] == 'success':
                 status = 200
 
-        if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
+        elif json_is_valid and len(data_json) == 2 and 'topic' in data_json \
                                                     and 'consumer_id' in data_json:
             topic        =  data_json['topic']
             consumer_id  =  int(data_json['consumer_id'])
@@ -170,6 +170,12 @@ class MyServerHandler:
 
             if response['status'] == 'success':
                 status = 200
+
+        else:
+            print('invalid data in parameters')
+            # incorrect params in data_json
+            response['status'] = 'failure'
+            response['message'] = 'invalid data in params'
 
         response = json.dumps(response)
         return response, status

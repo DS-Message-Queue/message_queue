@@ -3,12 +3,13 @@ import time
 import threading
 import os
 
-def consume(c, c_t,statusList, index,filename):
-    done_consuming = {}
-    for topic in c_t[index]:
-        done_consuming[topic] = False
+def consume(c, c_t, index,filename):
     f = open(filename, "w")
-    while False in done_consuming.values():
+    count = 993*5
+    while True:
+        if count == 0:
+            break
+        count -= 1
         for topic in c_t[index]:
             while True:
                 try:
@@ -18,12 +19,10 @@ def consume(c, c_t,statusList, index,filename):
                     f.write(text)
                     break
                 except MyConsumerError as e:
-                    if not (False in statusList):
-                        if 'No new message is published to' in str(e):
-                            done_consuming[topic] = True
-                        break
-                except:
-                    print('Connection Error, retrying...')
+                    print('Consumer Error: ', e)
+                    break
+                except Exception as e:
+                    print('Connection Error, retrying... : ', e)
     f.close()
 
 # tests
@@ -33,7 +32,6 @@ def system_test():
     c:list[MyConsumer] = []
     for i in range(3):
         c.append(MyConsumer())
-    statusList : list[bool] = []
 
     # Register Consumers
     c_t = []
@@ -54,10 +52,12 @@ def system_test():
     print('Starting Consumers')
     print('******************')
 
+    input()
+    
     threads = []
     # consumers consume
     for i in range(3):
-        t = threading.Thread(target = consume, args = (c, c_t, statusList, i,os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
+        t = threading.Thread(target = consume, args = (c, c_t, i,os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 

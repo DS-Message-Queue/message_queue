@@ -50,6 +50,8 @@ def system_test():
     print('Starting Producers')
     print('******************')
 
+    input()
+
     threads = []
     # prducers produce
     for i in range(5):
