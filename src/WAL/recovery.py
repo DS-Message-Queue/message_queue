@@ -2,20 +2,21 @@ class CrashRecovery():
     def __init__(self) -> None:
         pass
         
-
-    def recoverLogs(self, b_id) -> list:
-        '''Takes the broker id as input and verifies the log file to return any unsuccessful events correspondint to that broker as a list'''
-        bid_logs = {}
+    def recoverLogs(self, log_type) -> list:
+        '''Takes the log type as input and verifies the log file to return any unsuccessful events correspondint to that type as a list'''
+        log_map = {}
         with open('WAL.log', 'r') as f:
             logs = f.readlines()
             for log in logs:
-                if str(b_id) in log:
-                    txn_id = log.strip().split(" - ")[1]
-                    if txn_id not in bid_logs:
-                        bid_logs[txn_id] = ' '.join(log.strip().split(" - ")[3:])
+                if log_type in log:
+                    words = log.strip().split(" - ")
+                    print('log:', log)
+                    print('words:', words)
+                    txn_id = words[1]
+                    if txn_id not in log_map:
+                        log_map[txn_id] = ' '.join(words[3:])
                     else:
-                        bid_logs.pop(txn_id)
+                        print('pop:', txn_id)
+                        log_map.pop(txn_id)
         
-        return list(bid_logs.values())
-                    
-
+        return list(log_map.values())

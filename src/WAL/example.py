@@ -1,18 +1,21 @@
-from WAL import WAL
+from WAL import WriteAheadLog
 from recovery import *
+
+wal = WriteAheadLog()
+
+# To clear the log file after a checkpoint
+wal.clearlogfile()
 
 for i in range(10):
     if i % 2 == 0:
-        id = WAL.logEvent("b12_"+str(i),"regproducer_"+str(i), "123",  "foo", "A")
-        WAL.logSuccess(id, "b12_"+str(i),"regproducer_"+str(i), "123",  "foo", "A")
+        id = wal.logEvent("query" , "INSERT into message...")
+        wal.logSuccess(id, "query")
     else:
-        id = WAL.logEvent( "b12_"+str(i), "Enqueue", "123", "foo", "A", "This is message "+ str(i))
-        WAL.logSuccess(id , "b12_"+str(i), "Enqueue", "123", "foo", "A", "This is message "+ str(i))
-
+        id = wal.logEvent("topic", "INSERT into topic...")
+        # wal.logSuccess(id, "topic")
 
 rc = CrashRecovery()
-
-rlogs = rc.recoverLogs("b12_6")
-print(rlogs)
-#to clear the log file after a checkpoint
-#WAL.clearlogfile()
+qlogs = rc.recoverLogs("query")
+tlogs = rc.recoverLogs("topic")
+print(qlogs)
+print(tlogs)
