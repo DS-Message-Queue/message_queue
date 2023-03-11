@@ -22,7 +22,6 @@ class ManagerConnection:
 
     def __init__(self, host, port, token):
 
-        print("Constructor called")
         self.token = token
         self.registered = False
 
@@ -121,7 +120,6 @@ class ManagerConnection:
         """
             Get updates from the manager
         """
-        print('getting updates from manager...')
         while True:
             try:
                 Queries = self.stub.GetUpdates(m_pb2.Request())
@@ -145,13 +143,11 @@ class ManagerConnection:
                         query = final_query
                     self.curr.execute(query)
                     self.conn.commit()
-                print('done')
                 break
             except Exception as e:
                 print('exception:', e)
                 self.register_replica_if_required()
                 continue
-        print('done.')
 
         self.initialize_dict()
 

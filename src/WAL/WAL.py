@@ -14,7 +14,7 @@ class WriteAheadLog():
         self.file_handler.setFormatter(self.formatter)
         self.logger.addHandler(self.file_handler)
 
-    def logEvent(self,broker_id, request_type, *args) -> str:
+    def logEvent(self, request_type, *args) -> str:
         '''Takes broker id, request type from producer or consumer and logs the corresponding event with sutable args in the log file
             Returns the transaction id for the log'''
         self.__lock.acquire()
@@ -23,22 +23,19 @@ class WriteAheadLog():
         txn_id = str(hex(unix)) + str(self.counter)
         txn_id = txn_id[2:]
         self.counter += 1
-        self.logger.info("{} - {} - {} - ".format(str(txn_id), str(broker_id), str(request_type))+ " - ".join(map(str,args)))
+        log = "{} - {} - ".format(str(txn_id), str(request_type))+ " - ".join(map(str,args))
+        self.logger.info(log)
         self.__lock.release()
         return txn_id
         
-
-    def logSuccess(self,txn_id, broker_id, request_type, *args):
+    def logSuccess(self, txn_id, request_type):
         '''Takes broker id, request type from producer or consumer and logs the corresponding event with sutable args in the log file with a Success message'''
         self.__lock.acquire()
-        self.logger.info("{} - {} - {} - ".format(str(txn_id), str(broker_id), str(request_type))+ " - ".join(map(str,args)) + " Success")
+        log = "{} - {} - ".format(str(txn_id), str(request_type) + " Success")
+        self.logger.info(log)
         self.__lock.release()
         
     def clearlogfile(self):
         '''clears the log file. To be called after a checkpoint'''
         with open('WAL.log', 'w') as f:
             pass
-
-    
-
-# WAL = WriteAheadLog()

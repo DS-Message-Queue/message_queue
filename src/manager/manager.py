@@ -13,6 +13,8 @@ from src.Healthchecker.healthchecker import HealthChecker
 from datetime import datetime
 import time
 from src.WAL.WAL import WriteAheadLog
+from src.WAL.recovery import CrashRecovery
+
 class BrokerConnection:
     """
     Client for gRPC functionality
@@ -69,14 +71,17 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.__consumers = {}
         self.__producers = {}
         self.__health_checker = HealthChecker()
-        self.__queries = []
         self.brokers_connected = []
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
         
         self.wal = WriteAheadLog()
+        
         # Perform WAL Recovery
+        self.__queries = CrashRecovery().recoverLogs("query")
+        if len(self.__queries) == 0:
+            self.wal.clearlogfile()
 
     def connect_to_broker(self, host, port):
         self.total_brokers_connected += 1
@@ -132,7 +137,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         queries = self.__queries[:]
         self.__queries.clear()
         for q in queries:
-            yield pb2.Query(query=q)
+            # wal end
+            self.wal.logSuccess(q[0], "query")
+            yield pb2.Query(query=q[1])
 
     def ReceiveUpdatesFromBroker(self,req, context):
         for broker in self.brokers:
@@ -147,8 +154,13 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 pass
             if res is not None:
                 for query in res:
+                    # WAL start
                     self.__db.run_query(query)
-                    self.__queries.append(query)
+                    # WAL end
+
+                    # wal log start here and end when query is sent to replica
+                    txn_id = self.wal.logEvent("query", query)
+                    self.__queries.append((txn_id, query))
         return pb2.UpdatesFromBroker()
 
     def SendTransaction(self, transaction_req, context):
@@ -222,7 +234,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     output = {"status": "success",
                               "message": "Topic created."}
-                    self.__queries.append(output_query)
+                    
+                    # success for this log event will be written when the
+                    # query is sent to replica
+                    txn_id = self.wal.logEvent("query", output_query)
+                    self.__queries.append((txn_id, output_query))
 
                     # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END WAL TRANSACTION
@@ -245,18 +261,21 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     # Setting partition id default to 1
                     # START THE WAL LOGGING
                     # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
-                    # output_query = self.__db.insert_topic(
-                    #     topic_requested, 1, 0)
+                    output_query = self.__db.insert_topic(
+                        topic_requested, 1, 0)
                     self.__topics[topic_requested] = {1: {"messages": []}}
                     for broker in self.brokers:
                         input = {'req': "CreateTopic", "topic": topic_requested}
                         self.brokers[broker].send_transaction(input)
                         try:
-                            self.__health_checker.insert_into_broker(broker,str(datetime.now()))
+                            self.__health_checker.insert_into_broker(broker, str(datetime.now()))
                         except:
                             pass
 
-                    # self.__queries.append(output_query)
+                    # The wal end for this query will be set when it is send to replica
+                    txn_id = self.wal.logEvent("query", output_query)
+                    self.__queries.append((txn_id, output_query))
+
                     # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END THE WAL LOGGING
                 except:
@@ -268,13 +287,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             try:
                 # START THE WAL LOGGING
                 # txn_id = self.wal.logEvent(broker, "Register Producer", len(self.__producers) + 1, topic_requested)
-                temp_queries = []
                 for each_partition in self.__topics[topic_requested]:
                     if each_partition == 'consumers' or each_partition == 'producers':
                         continue
                     output_query = self.__db.insert_for_producer(
                         len(self.__producers) + 1, topic_requested, each_partition)
-                    temp_queries.append(output_query)
                 for broker in self.brokers:
                     input = {'req': transaction_type, "topic": topic_requested, "producer_id": len(
                             self.__producers) + 1}
@@ -287,9 +304,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 self.__producers[len(self.__producers) + 1] = {'topic': topic_requested}
                 output = {"status": "success",
                           "message": "Producer created successfully.", "producer_id": len(self.__producers)}
-                self.__queries = (self.__queries + temp_queries).copy()
                 try:
-                    self.__health_checker.insert_into_producer(len(self.__producers) +1,str(datetime.now()))
+                    self.__health_checker.insert_into_producer(len(self.__producers), str(datetime.now()))
                 except:
                     pass
                 
