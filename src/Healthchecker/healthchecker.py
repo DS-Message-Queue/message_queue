@@ -11,13 +11,13 @@ class HealthChecker():
         '''This function creates tables for producer, consumer and broker'''
         self.curr = self.conn.cursor()
         
-        self.curr.execute("CREATE TABLE IF NOT EXISTS Producer_t(p_id VARCHAR(255) PRIMARY KEY, time_stamp TIMESTAMP)")
+        self.curr.execute("CREATE TABLE IF NOT EXISTS Producer_t(p_id VARCHAR(255), time_stamp TIMESTAMP)")
         self.conn.commit()
 
-        self.curr.execute("CREATE TABLE IF NOT EXISTS Consumer_t(c_id VARCHAR(255) PRIMARY KEY, time_stamp TIMESTAMP)")
+        self.curr.execute("CREATE TABLE IF NOT EXISTS Consumer_t(c_id VARCHAR(255), time_stamp TIMESTAMP)")
         self.conn.commit()
 
-        self.curr.execute("CREATE TABLE IF NOT EXISTS Broker(b_id VARCHAR(255) PRIMARY KEY, time_stamp TIMESTAMP)")
+        self.curr.execute("CREATE TABLE IF NOT EXISTS Broker(b_id VARCHAR(255), time_stamp TIMESTAMP)")
         self.conn.commit()
 
     def clear_database(self):

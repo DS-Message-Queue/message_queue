@@ -95,7 +95,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         print('register broker called')
         broker_id = self.connect_to_broker(broker.host, broker.port)
         try:
-            self.__health_checker.insert_into_broker(broker_id,datetime.now())
+            self.__health_checker.insert_into_broker(broker_id,str(datetime.now()))
         except:
             pass
         transaction = {
@@ -139,7 +139,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             res = None
             try:
                 res = self.brokers[broker].get_updates()
-            except :
+            except:
+                pass
+            try:
+                self.__health_checker.insert_into_broker(broker,str(datetime.now()))
+            except:
                 pass
             if res is not None:
                 for query in res:
@@ -210,7 +214,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
                         try:
-                            self.__health_checker.insert_into_broker(broker,datetime.now())
+                            self.__health_checker.insert_into_broker(broker,str(datetime.now()))
                         except:
                             pass
                     output_query = self.__db.insert_topic(
@@ -248,7 +252,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         input = {'req': "CreateTopic", "topic": topic_requested}
                         self.brokers[broker].send_transaction(input)
                         try:
-                            self.__health_checker.insert_into_broker(broker,datetime.now())
+                            self.__health_checker.insert_into_broker(broker,str(datetime.now()))
                         except:
                             pass
 
@@ -276,7 +280,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                             self.__producers) + 1}
                     self.brokers[broker].send_transaction(input)
                     try:
-                        self.__health_checker.insert_into_broker(broker,datetime.now())
+                        self.__health_checker.insert_into_broker(broker,str(datetime.now()))
                     except:
                         pass
 
@@ -285,7 +289,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                           "message": "Producer created successfully.", "producer_id": len(self.__producers)}
                 self.__queries = (self.__queries + temp_queries).copy()
                 try:
-                    self.__health_checker.insert_into_producer(len(self.__producers) +1,datetime.now())
+                    self.__health_checker.insert_into_producer(len(self.__producers) +1,str(datetime.now()))
                 except:
                     pass
                 
@@ -313,8 +317,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         print("Called for broker",broker)
                         output = self.brokers[broker].send_transaction(transaction)
                         try:
-                            self.__health_checker.insert_into_broker(broker,datetime.now())
-                            self.__health_checker.insert_into_producer(transaction['producer_id'],datetime.now())
+                            self.__health_checker.insert_into_broker(broker,str(datetime.now()))
+                            self.__health_checker.insert_into_producer(transaction['producer_id'],str(datetime.now()))
                         except:
                             pass
                         # self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
