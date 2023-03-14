@@ -198,7 +198,8 @@ class MyServerHandler:
 
             # size
             # ret = message_queue.log_size(topic,consumer_id)
-            ret = {}
+            transaction = {'req': 'Size', 'topic': topic, 'consumer_id': consumer_id}
+            ret = self.manager_rpc.send_transaction(transaction)
             response.update(ret)
             if response['status'] == 'success':
                 status = 200

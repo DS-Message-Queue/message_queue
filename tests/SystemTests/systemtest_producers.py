@@ -12,7 +12,7 @@ def produce(p, statusList, index, filename):
                 topic = re.findall('T-\d', message)
                 if len(topic) > 0:
                     p[index].Enqueue(topic[0], message)
-                    time.sleep(0.02)
+                    time.sleep(0.0005)
                 break
             except MyProducerError as e:
                 pass

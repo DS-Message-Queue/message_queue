@@ -13,7 +13,7 @@ import threading
 from src.controller.utils import raise_error, raise_success
 
 
-partition_id = 1
+
 
 class ManagerConnection:
     """
@@ -22,6 +22,7 @@ class ManagerConnection:
 
     def __init__(self, host, port, token):
 
+        print("Constructor called")
         self.token = token
         self.registered = False
 
@@ -33,7 +34,7 @@ class ManagerConnection:
         self.stub = m_pb2_grpc.ManagerServiceStub(self.channel)
         
         self.__consumer = {}
-        self.__topic = {}
+        self.__topics = {}
         #Initializing Database Connections
 
         self.conn = self.get_connection()
@@ -47,7 +48,9 @@ class ManagerConnection:
         self.__lock = threading.Lock()
 
         self.current_partition = {}
+        self.initialize_dict()
 
+        
         
     
     def get_connection(self):
@@ -83,6 +86,7 @@ class ManagerConnection:
         self.curr.execute("truncate table topic, consumer, producer, message;")
         self.conn.commit()
         self.__consumer = {}
+        self.__topics = {}
         self.current_partition = {}
 
     def health_check(self):
@@ -120,12 +124,15 @@ class ManagerConnection:
         """
             Get updates from the manager
         """
+        print('getting updates from manager...')
+        flag = 0
         while True:
             try:
                 Queries = self.stub.GetUpdates(m_pb2.Request())
                 self.curr = self.conn.cursor()
                 for q in Queries:
                     query = q.query
+                    flag = 1
                     if 'INSERT INTO message' in query:
                         final_query = 'INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('
                         length = len(final_query)
@@ -143,59 +150,101 @@ class ManagerConnection:
                         query = final_query
                     self.curr.execute(query)
                     self.conn.commit()
+                print('done')
                 break
             except Exception as e:
                 print('exception:', e)
                 self.register_replica_if_required()
                 continue
+        print('done.')
 
-        self.initialize_dict()
+        if flag == 1:
+            self.initialize_dict()
 
     
     def initialize_dict(self):
-        self.curr = self.conn.cursor()
+        try:
+            self.curr = self.conn.cursor()
 
-        self.curr.execute("SELECT * FROM consumer;")
-        result_consumer = self.curr.fetchall()
+            self.curr.execute("SELECT * FROM consumer;")
+            result_consumer = self.curr.fetchall()
 
-        for consumer in result_consumer:
-            if consumer[0] not in self.__consumer:
-                self.__consumer[str(consumer[0])] = {}
+            for consumer in result_consumer:
+                if consumer[0] not in self.__consumer:
+                    self.__consumer[str(consumer[0])] = {}
 
-        for consumer in self.__consumer:
-            self.curr.execute("SELECT topic_name, position, partition_id FROM consumer where c_id = " + str(consumer) + ";")
-            result = self.curr.fetchall()
-
+            self.curr.execute("SELECT * FROM topic;")
+            result = self.curr.fetchall()      
             for res in result:
-                self.curr.execute("SELECT message, partition_id FROM message where topic_name = '" + str(res[0]) + "';")
-                result_for_partition = self.curr.fetchall()
-                for result_partition in result_for_partition:
-                    self.curr.execute("SELECT message, subscribers, m_id from message where topic_name = '" + str(res[0]) + "' and partition_id = " + str(result_partition[1]) + " order by m_id asc;")
-                    result_message = self.curr.fetchall()
+                if res[0] not in self.__topics:
+                    self.__topics[res[0]] = {}
+                    
+
+                self.curr.execute("SELECT * from topic where topic_name = '" + res[0] + "';")
+                result_for_topic = self.curr.fetchall()
+                message = []
+                partition = []
+                m_id = []
+                for result_topic in result_for_topic:
+                    partition.append(result_topic[2])
+
+                for par in partition:
+                    if str(par) not in self.__topics[res[0]]:
+                        self.__topics[res[0]][str(par)] = {}
+                    
+
                     message = []
-                    subscribers = []
                     m_id = []
-                    for mes in result_message:
-                        message.append(mes[0])
-                        subscribers.append(mes[1])
-                        m_id.append(mes[2])
-                    
-                    result_partition = list(result_partition)
-                    if str(res[0]) not in self.__consumer[str(consumer[0])]:
-                        self.__consumer[str(consumer[0])][str(res[0])] = {}
-                    
-                    if str(result_partition[1]) not in self.__consumer[str(consumer[0])][str(res[0])]:
-                            self.__consumer[str(consumer[0])][str(res[0])][str(result_partition[1])] = {'message' : message, 'm_id': m_id, 'subscribers' : subscribers, 'bias': 0, 'position': 0}
-                    else:
-                        if res[2] not in result_partition:
-                            self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + res[0] + "', " + str(0) + ", " + str(result_partition[1]) + ");")
-                        
-                        else:
-                            self.__consumer[str(consumer[0])][str(res[0])][str(result_partition[1])] = {'message' : message, 'm_id': m_id, 'subscribers' : subscribers, 'bias': 0, 'position': int(res[1]) }
+                    subscribers = []
+                    self.curr.execute("SELECT * from message where topic_name = '" + res[0] + "' and partition_id = " + str(par) + " order by m_id asc;")
+                    result_for_message = self.curr.fetchall()
+                    for result_message in result_for_message:
+                        message.append(result_message[1])
+                        m_id.append(result_message[0])
+                        subscribers.append(result_message[3])
 
-        print(self.__consumer)
-        
+                    self.__topics[res[0]][str(par)] = {'message': message, 'm_id': m_id, 'subscribers': subscribers}
 
+                
+            for consumer in self.__consumer:
+                self.curr.execute("SELECT topic_name, position, partition_id FROM consumer where c_id = " + str(consumer) + ";")
+                resulting = self.curr.fetchall()
+                partition = []
+                for topic in resulting:
+                    partition.append(topic[2])
+                    if topic[0] not in self.__consumer[consumer]:
+                        self.__consumer[consumer][topic[0]] = {}
+
+                    if str(topic[2]) not in self.__consumer[consumer][topic[0]]:
+                        self.__consumer[consumer][topic[0]][str(topic[2])] = {'position': topic[1]}
+                
+                
+                for topic in resulting:
+                    self.curr.execute("SELECT topic_name, partition_id FROM topic where topic_name = '" + topic[0] + "';")
+                    result_consumer = self.curr.fetchall()
+                    if topic[0] not in self.__consumer[consumer]:
+                        self.__consumer[consumer][topic[0]] = {}
+                    for result_c in result_consumer:
+                        if str(result_c[1]) not in self.__consumer[consumer][topic[0]]:
+                            if result_c[1] not in partition:
+                                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) \
+                                                SELECT '" + str(consumer) + "', '" + topic[0] + "', '0', '" + str(result_c[1]) + \
+                                                "' WHERE NOT EXISTS(SELECT c_id, topic_name, partition_id from consumer WHERE c_id = " + str(consumer) + \
+                                                " and topic_name = '"+ topic[0] + "' and partition_id = " + str(result_c[1]) + ");")
+                                # self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + topic[0] + "', " + str(0) + ", " + str(result_c[1]) + ");")    
+                                self.conn.commit()
+                                self.__consumer[consumer][topic[0]][str(result_c[1])] = {'position': 0}
+                            
+
+            
+            print('consumer:', self.__consumer)
+        except Exception as e:
+            print('Exception in intialize dict:', e)
+                
+
+            
+
+            
         # print(self.__consumer)
 
     def insert_for_consumer(self, consumer_id, topic, position, partition):
@@ -208,7 +257,7 @@ class ManagerConnection:
                 else:
                     self.curr.execute("UPDATE message set subscribers = subscribers + 1 WHERE topic_name = '" + topic + "' and partition_id = " + str(partition[i]))            
                     self.conn.commit()
-                    self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(position) + ", " + str(partition[i]) + ");")
+                    self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer_id) + ", '" + topic + "', " + str(position[i]) + ", " + str(partition[i]) + ");")
 
                     self.conn.commit()
                 # self.__consumer[consumer_id][topic][partition]['subscribers'][position] += 1
@@ -227,16 +276,16 @@ class ManagerConnection:
             return raise_error("Lock cannot be acquired.")
         
         self.get_updates()
-        topics = []
+        topic_s = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT * from topic;")
         result = self.curr.fetchall()
 
         for res in result:
             res = list(res)
-            topics.append(res[0])
+            topic_s.append(res[0])
         
-        if topic not in topics:
+        if topic not in topic_s:
             self.__lock.release()
             return raise_error("Topic doesn't exist.")
 
@@ -250,22 +299,31 @@ class ManagerConnection:
 
         consumer_id = len(self.__consumer) + 1
         
-        position = 0
+        position = []
         if len(self.__consumer) != 0:
-            for i in self.__consumer:
-                if topic in self.__consumer[i]:
-                    for j in self.__consumer[i][topic]:
-                        position = len(self.__consumer[i][topic][j]['message'])
+            for topicss in self.__topics:
+                for j in self.__topics[topic]:
+                    position.append(len(self.__topics[topicss][j]['message']))
 
         if position == []:
             position = 0
 
         self.insert_for_consumer(consumer_id, topic, position, partition)
         # self.__consumer = {}
-
-        self.initialize_dict()
+        if str(consumer_id) not in self.__consumer:
+            self.__consumer[str(consumer_id)] = {}
+        if topic not in self.__consumer[str(consumer_id)]:
+            self.__consumer[str(consumer_id)][topic] = {}
+        
+        for i in range(len(partition)):
+            if str(partition[i]) not in self.__consumer[str(consumer_id)][topic]:
+                if position == 0:
+                    self.__consumer[str(consumer_id)][topic][str(partition[i])] = {'position': 0}
+                else:
+                    self.__consumer[str(consumer_id)][topic][str(partition[i])] = {'position': position[i]}
+        
         # print(self.__consumer[str(consumer_id)])
-        self.partition_id()
+        # self.partition_id()
         self.__lock.release() 
         # print(self.__consumer)
 
@@ -276,20 +334,18 @@ class ManagerConnection:
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
+        
         self.get_updates()
-        topics = []
-        self.curr = self.conn.cursor()
-        self.curr.execute("SELECT DISTINCT(topic_name) from topic;")
-        result = self.curr.fetchall()
-        for res in result:
-            topics.append(res[0])
+        topic = []
+        for res in self.__topics:
+            topic.append(res)
 
-        if topics == []:
+        if topic == []:
             self.__lock.release()
             return raise_error("No topics found")
 
         self.__lock.release()
-        return raise_success("Successfully fetched topics.", {"topics": topics})
+        return raise_success("Successfully fetched topics.", {"topics": topic})
 
     def list_partitions(self, topic):
 
@@ -314,13 +370,15 @@ class ManagerConnection:
 
     def consume_message_with_partition(self, topic, consumer_id, partition, lock_acquired = False):
         partition = str(partition)
-
+        consumer_id = str(consumer_id)
         if not lock_acquired:
             isLockAvailable = self.__lock.acquire(blocking = False)
             if isLockAvailable is False:
                 return raise_error("Lock cannot be acquired.")
         
-        if topic not in self.__consumer[consumer_id]:
+        if not lock_acquired:
+            self.get_updates()
+        if topic not in self.__consumer[(consumer_id)]:
             if not lock_acquired:
                 self.__lock.release()
             return raise_error(consumer_id + " did not subscribe to topic - " + topic)
@@ -330,7 +388,7 @@ class ManagerConnection:
             if not lock_acquired:
                 self.__lock.release()
 
-            return raise_error("Partition " + partition + " Not Found")
+            return raise_error(consumer_id + " did not subscribe to topic - " + topic)
         
 
         message_position = self.__consumer[consumer_id][topic][partition]['position']
@@ -345,23 +403,23 @@ class ManagerConnection:
         # if self.__consumer[consumer_id][topic][partition]['subscribers'][-1] != 0:
         #     message_position += 1
         # print('Mess ', message_position, self.__consumer[consumer_id][topic][partition]['subscribers'][message_position])
-        if message_position >= len(self.__consumer[consumer_id][topic][partition]['message']) \
-        or self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] == 0:
+        if message_position >= len(self.__topics[topic][partition]['message']) \
+        or self.__topics[topic][partition]['subscribers'][message_position] == 0:
             self.get_updates()
             if not lock_acquired:
                 self.__lock.release()
             return raise_error("No new message is published to " + topic + ", " + partition + ".")
         
-        m_id = self.__consumer[consumer_id][topic][partition]['m_id'][message_position]
-        message = self.__consumer[consumer_id][topic][partition]['message'][message_position]
+        m_id = self.__topics[topic][partition]['m_id'][message_position]
+        message = self.__topics[topic][partition]['message'][message_position]
         self.__consumer[consumer_id][topic][partition]['position'] = self.__consumer[consumer_id][topic][partition]['position'] + 1
-        self.__consumer[consumer_id][topic][partition]['subscribers'][message_position] -= 1
+        self.__topics[topic][partition]['subscribers'][message_position] -= 1
 
         print('sql call start')
         self.curr = self.conn.cursor()
         self.curr.execute("UPDATE consumer set position = " + str(self.__consumer[consumer_id][topic][partition]['position']) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
         self.conn.commit()
-        self.curr.execute("UPDATE message set subscribers = " + str(self.__consumer[consumer_id][topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + " and message = '" + message + "' and m_id = " + str(m_id) + ";")
+        self.curr.execute("UPDATE message set subscribers = " + str(self.__topics[topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + " and message = '" + message + "' and m_id = " + str(m_id) + ";")
         self.conn.commit()
         print('sql call end')
         
@@ -377,25 +435,23 @@ class ManagerConnection:
 
     def consume_message(self, topic, consumer_id):
         try:
+
             isLockAvailable = self.__lock.acquire(blocking = False)
             if isLockAvailable is False:
+                with open('errorlog.txt', 'a') as f:
+                    f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
                 return raise_error("Lock cannot be acquired.")
 
             if consumer_id not in self.__consumer:
                 self.__lock.release()
                 return raise_error("Consumer not found.")
             
-            topics = []
-            self.curr = self.conn.cursor()
-            print('befor cm - 1')
-            self.curr.execute("SELECT * from topic;")
-            result = self.curr.fetchall()
-            print('after cm - 1')
-            for res in result:
-                res = list(res)
-                topics.append(res[0])
+            topic_s = []
+
+            for res in self.__topics:
+                topic_s.append(res)
             
-            if topic not in topics:
+            if topic not in topic_s:
                 self.get_updates()
                 self.__lock.release()
                 return raise_error("Topic doesn't exist.")
@@ -427,6 +483,39 @@ class ManagerConnection:
         except Exception as e:
             print('exception:', e) 
 
+    def log_size(self, topic_name, consumer_id):
+        isLockAvailable = self.__lock.acquire(blocking=False)
+        
+        if isLockAvailable is False:
+            with open('errorlog.txt', 'a') as f:
+                f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
+            return raise_error("Lock cannot be acquired.")
+        
+        self.get_updates()
+        if topic_name not in self.__topics:
+            self.__lock.release()
+            with open('errorlog.txt', 'a') as f:
+                f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
+            return raise_error("Topic " + topic_name + " doesn't exist.")
+        
+        if consumer_id not in self.__consumer:
+            self.__lock.release()
+            with open('errorlog.txt', 'a') as f:
+                f.write(consumer_id + " id Consumer doesn't exist. : " + self.__consumer)
+            return raise_error("Consumer doesn't exist.")
+        
+        if topic_name not in self.__consumer[consumer_id]:
+            self.__lock.release()
+            with open('errorlog.txt', 'a') as f:
+                f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + self.__consumer)
+            return raise_error("Consumer is not subscribed to " + topic_name + ".")
+        
+        size = 0
+        for i in self.__topics[topic_name]:
+            size += (len(self.__topics[topic_name][i]["message"]) - self.__consumer[consumer_id][topic_name][i]['position'])
+
+        self.__lock.release()
+        return raise_success("Successfully fetched size for topic " + topic_name + ".", {"size": size })
 
     def __del__(self):
         if self.conn:
@@ -504,6 +593,12 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
                 output = {"status": "failure",
                           "message": "Couldn't clear database."}
             return output
+    
+        elif transaction['req'] == 'Size':
+            topic = transaction['topic']
+            consumer_id = transaction['consumer_id']
+
+            return self.manager.log_size(topic, str(consumer_id))
 
 class ManagerReplica:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
