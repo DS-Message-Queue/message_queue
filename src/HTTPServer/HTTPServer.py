@@ -105,7 +105,6 @@ class MyServerHandler:
         print('partitions requested')
         json_is_valid = True
         data_json = dict(request.args)
-        print(data_json)
         response = {}
         status = 400
         if len(data_json) == 0:
@@ -135,7 +134,6 @@ class MyServerHandler:
         json_is_valid = True
         data_json = dict(request.args)
         response = {}
-        print(data_json)
         status = 400
         if len(data_json) == 0:
             print('invalid data in params')
@@ -241,7 +239,6 @@ class MyServerHandler:
         except json.decoder.JSONDecodeError:
             print('JSON decode failed')
             json_is_valid = False
-        print(data_json)
         if json_is_valid and len(data_json) == 1 and 'topic_name' in data_json:
             topic = data_json['topic_name']
             transaction = {'req': 'CreateTopic', 'topic': topic}
