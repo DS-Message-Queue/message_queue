@@ -5,25 +5,31 @@ import os
 
 def consume(c, c_t, index,filename):
     f = open(filename, "w")
-    count = 993*5
+    topics_done_count = 0
     no_message_count = {}
-    for i in c_t[index]:
-        no_message_count[i] = 0
-    while True:
-        if count == 0:
-            break
-        count -= 1
+    for topic in c_t[index]:
+        if topic == 'T-1':
+            no_message_count[topic] = 1821
+        elif topic == 'T-2':
+            no_message_count[topic] = 2317
+        elif topic == 'T-3':
+            no_message_count[topic] = 827
+
+    while topics_done_count < len(c_t[index]):
         for topic in c_t[index]:
+            if no_message_count[topic] == 0:
+                continue
             try:
-                while c[index].Size(topic) > 0:
                     text = c[index].Dequeue(topic)
-                    #print(text)
-                    time.sleep(0.005)
-                    f.write(text)
-                    break
+                time.sleep(0.005)
+                #print(text)
+                f.write(text)
+                no_message_count[topic] -= 1
+                if no_message_count[topic] == 0:
+                    topics_done_count += 1
             except MyConsumerError as e:
                 print('Consumer Error: ', e)
-                break
+                continue
             except Exception as e:
                 print('Connection Error, retrying... : ', e)
                 exit(-1)

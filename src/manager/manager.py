@@ -196,6 +196,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 self.__topics = {}
                 self.__consumers = {}
                 self.__producers = {}
+                self.wal.clearlogfile()
                 output = {"status": "success",
                           "message": "Database Cleared successfully."}
             except:

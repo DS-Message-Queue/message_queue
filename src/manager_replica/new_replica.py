@@ -237,7 +237,7 @@ class ManagerConnection:
                             
 
             
-            print('consumer:', self.__consumer)
+            # print('consumer:', self.__consumer)
         except Exception as e:
             print('Exception in intialize dict:', e)
                 
@@ -294,7 +294,7 @@ class ManagerConnection:
         partition = []
         for res in result:
             res = list(res)
-            print(res)
+            # print(res)
             partition.append(res[0])        
 
         consumer_id = len(self.__consumer) + 1
@@ -392,7 +392,7 @@ class ManagerConnection:
         
 
         message_position = self.__consumer[consumer_id][topic][partition]['position']
-        print(message_position)
+        # print(message_position)
         
 
         if self.__consumer == {}:
@@ -415,13 +415,13 @@ class ManagerConnection:
         self.__consumer[consumer_id][topic][partition]['position'] = self.__consumer[consumer_id][topic][partition]['position'] + 1
         self.__topics[topic][partition]['subscribers'][message_position] -= 1
 
-        print('sql call start')
+        # print('sql call start')
         self.curr = self.conn.cursor()
         self.curr.execute("UPDATE consumer set position = " + str(self.__consumer[consumer_id][topic][partition]['position']) + " WHERE c_id = " + str(consumer_id) + " and partition_id = " + str(partition) + " and topic_name = '" + topic + "';")
         self.conn.commit()
         self.curr.execute("UPDATE message set subscribers = " + str(self.__topics[topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + " and message = '" + message + "' and m_id = " + str(m_id) + ";")
         self.conn.commit()
-        print('sql call end')
+        # print('sql call end')
         
         # self.__consumer == {}
         # self.initialize_dict()
@@ -439,7 +439,7 @@ class ManagerConnection:
             isLockAvailable = self.__lock.acquire(blocking = False)
             if isLockAvailable is False:
                 with open('errorlog.txt', 'a') as f:
-                    f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
+                    f.write("Topic " + topic + " doesn't exist. : " + str(self.__topics))
                 return raise_error("Lock cannot be acquired.")
 
             if consumer_id not in self.__consumer:
@@ -456,10 +456,10 @@ class ManagerConnection:
                 self.__lock.release()
                 return raise_error("Topic doesn't exist.")
 
-            print('before cm - 2')
+            # print('before cm - 2')
             self.curr.execute("SELECT * from topic WHERE topic_name = '" + topic + "';")
             result = self.curr.fetchall()
-            print('after cm - 2 .{}.'.format(topic))
+            # print('after cm - 2 .{}.'.format(topic))
             partition = 1
             
             response = {}
@@ -476,7 +476,7 @@ class ManagerConnection:
                 self.__lock.release()
                 return raise_error("No new message is published to " + topic + ".")
 
-            print('returning....')
+            # print('returning....')
             self.__lock.release()
             return response
         
@@ -488,26 +488,26 @@ class ManagerConnection:
         
         if isLockAvailable is False:
             with open('errorlog.txt', 'a') as f:
-                f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
+                f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Lock cannot be acquired.")
         
         self.get_updates()
         if topic_name not in self.__topics:
             self.__lock.release()
             with open('errorlog.txt', 'a') as f:
-                f.write("Topic " + topic_name + " doesn't exist. : " + self.__topics)
+                f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Topic " + topic_name + " doesn't exist.")
         
         if consumer_id not in self.__consumer:
             self.__lock.release()
             with open('errorlog.txt', 'a') as f:
-                f.write(consumer_id + " id Consumer doesn't exist. : " + self.__consumer)
+                f.write(consumer_id + " id Consumer doesn't exist. : " + str(self.__consumer))
             return raise_error("Consumer doesn't exist.")
         
         if topic_name not in self.__consumer[consumer_id]:
             self.__lock.release()
             with open('errorlog.txt', 'a') as f:
-                f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + self.__consumer)
+                f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + str(self.__consumer))
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
         
         size = 0
