@@ -438,8 +438,8 @@ class ManagerConnection:
 
             isLockAvailable = self.__lock.acquire(blocking = False)
             if isLockAvailable is False:
-                with open('errorlog.txt', 'a') as f:
-                    f.write("Topic " + topic + " doesn't exist. : " + str(self.__topics))
+                # with open('errorlog.txt', 'a') as f:
+                #     f.write("Topic " + topic + " doesn't exist. : " + str(self.__topics))
                 return raise_error("Lock cannot be acquired.")
 
             if consumer_id not in self.__consumer:
@@ -487,27 +487,27 @@ class ManagerConnection:
         isLockAvailable = self.__lock.acquire(blocking=False)
         
         if isLockAvailable is False:
-            with open('errorlog.txt', 'a') as f:
-                f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
+            # with open('errorlog.txt', 'a') as f:
+            #     f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Lock cannot be acquired.")
         
         self.get_updates()
         if topic_name not in self.__topics:
             self.__lock.release()
-            with open('errorlog.txt', 'a') as f:
-                f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
+            # with open('errorlog.txt', 'a') as f:
+            #     f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Topic " + topic_name + " doesn't exist.")
         
         if consumer_id not in self.__consumer:
             self.__lock.release()
-            with open('errorlog.txt', 'a') as f:
-                f.write(consumer_id + " id Consumer doesn't exist. : " + str(self.__consumer))
+            # with open('errorlog.txt', 'a') as f:
+            #     f.write(consumer_id + " id Consumer doesn't exist. : " + str(self.__consumer))
             return raise_error("Consumer doesn't exist.")
         
         if topic_name not in self.__consumer[consumer_id]:
             self.__lock.release()
-            with open('errorlog.txt', 'a') as f:
-                f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + str(self.__consumer))
+            # with open('errorlog.txt', 'a') as f:
+            #     f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + str(self.__consumer))
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
         
         size = 0
