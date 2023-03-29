@@ -5,7 +5,7 @@ package brokerservice;
 service BrokerService{
 
  rpc SendTransaction(Transaction) returns (Response) {}
- rpc GetUpdates(Request) returns (Queries) {}
+ rpc GetUpdates(Request) returns (stream Query) {}
  rpc ResetBroker(BrokerDetails) returns (Status) {}
 
 }
@@ -22,8 +22,8 @@ message Transaction{
 message Request{}
 message Status{}
 
-message Queries{
- repeated string queries = 1;
+message Query{
+ string query = 1;
 }
 
 message BrokerDetails{

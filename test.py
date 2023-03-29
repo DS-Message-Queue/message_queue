@@ -1,4 +1,9 @@
-from tests.SystemTests.systemtests import *
+import tests.SystemTests.systemtest_producers
+import tests.SystemTests.systemtest_consumers
+import sys
 
-system_test_1()
-system_test_2()
+if len(sys.argv) > 1:    
+    if sys.argv[1] == 'p':
+        tests.SystemTests.systemtest_producers.system_test()
+    elif sys.argv[1] == 'c':
+        tests.SystemTests.systemtest_consumers.system_test()
