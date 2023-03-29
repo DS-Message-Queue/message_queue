@@ -20,7 +20,7 @@ def consume(c, c_t, index,filename):
             if no_message_count[topic] == 0:
                 continue
             try:
-                    text = c[index].Dequeue(topic)
+                text = c[index].Dequeue(topic)
                 time.sleep(0.005)
                 #print(text)
                 f.write(text)
