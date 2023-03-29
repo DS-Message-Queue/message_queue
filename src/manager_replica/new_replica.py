@@ -227,11 +227,11 @@ class ManagerConnection:
                     for result_c in result_consumer:
                         if str(result_c[1]) not in self.__consumer[consumer][topic[0]]:
                             if result_c[1] not in partition:
-                                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) \
-                                                SELECT '" + str(consumer) + "', '" + topic[0] + "', '0', '" + str(result_c[1]) + \
-                                                "' WHERE NOT EXISTS(SELECT c_id, topic_name, partition_id from consumer WHERE c_id = " + str(consumer) + \
-                                                " and topic_name = '"+ topic[0] + "' and partition_id = " + str(result_c[1]) + ");")
-                                # self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + topic[0] + "', " + str(0) + ", " + str(result_c[1]) + ");")    
+                                # self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) \
+                                #                 SELECT '" + str(consumer) + "', '" + topic[0] + "', '0', '" + str(result_c[1]) + \
+                                #                 "' WHERE NOT EXISTS(SELECT c_id, topic_name, partition_id from consumer WHERE c_id = " + str(consumer) + \
+                                #                 " and topic_name = '"+ topic[0] + "' and partition_id = " + str(result_c[1]) + ");")
+                                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + topic[0] + "', " + str(0) + ", " + str(result_c[1]) + ");")    
                                 self.conn.commit()
                                 self.__consumer[consumer][topic[0]][str(result_c[1])] = {'position': 0}
                             
