@@ -166,6 +166,7 @@ class ManagerConnection:
                     self.curr = self.conn.cursor()
                     self.curr.execute(query)
                     self.conn.commit()
+                    self.__lock.release()
                     if 'INSERT INTO message' in query:
                         m_id = self.curr.fetchone()[0]
                     
@@ -192,7 +193,9 @@ class ManagerConnection:
 
                     else:
                         print('invalid query provided')
-                    self.__lock.release()
+
+                    # make sure this thread does not eat up resources
+                    time.sleep(0.001)
                 break
             except Exception as e:
                 print('exception:', e)

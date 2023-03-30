@@ -1,6 +1,7 @@
 from src.Consumer.consumer_client import MyConsumer, MyConsumerError
 import time
 import threading
+import multiprocessing
 import os
 
 def consume(c, c_t,filename):
@@ -67,7 +68,7 @@ def system_test():
     threads = []
     # consumers consume
     for i in range(3):
-        t = threading.Thread(target = consume, args = (c[i], c_t[i][:], os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
+        t = multiprocessing.Process(target = consume, args = (c[i], c_t[i][:], os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 
