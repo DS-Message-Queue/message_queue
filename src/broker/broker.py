@@ -168,7 +168,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
                 }]
             }
         self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) +
-                                   " ', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + "' and partition_id =" + str(self.broker_id) + ");")
+                                   "', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + "' and partition_id =" + str(self.broker_id) + ");")
         self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
                                    message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
         res = raise_success("Message added successfully.")

@@ -170,6 +170,9 @@ class MyServerHandler:
             if response['status'] == 'success':
                 status = 200
 
+            else:
+                print(response['message'])
+
         else:
             print('invalid data in parameters')
             # incorrect params in data_json

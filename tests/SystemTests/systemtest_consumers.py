@@ -1,32 +1,33 @@
 from src.Consumer.consumer_client import MyConsumer, MyConsumerError
 import time
 import threading
+import multiprocessing
 import os
 
-def consume(c, c_t, index,filename):
+def consume(c, c_t,filename):
     f = open(filename, "w")
-    topics_done_count = 0
-    no_message_count = {}
-    for topic in c_t[index]:
+    message_count = {}
+    for topic in c_t:
         if topic == 'T-1':
-            no_message_count[topic] = 1821
+            message_count[topic] = 1821
         elif topic == 'T-2':
-            no_message_count[topic] = 2317
+            message_count[topic] = 2317
         elif topic == 'T-3':
-            no_message_count[topic] = 827
+            message_count[topic] = 827
+        else:
+            print('invalid data')
+            exit(-2)
 
-    while topics_done_count < len(c_t[index]):
-        for topic in c_t[index]:
-            if no_message_count[topic] == 0:
-                continue
+    while len(c_t) > 0:
+        topics = c_t[:]
+        for topic in topics:
             try:
-                text = c[index].Dequeue(topic)
+                text = c.Dequeue(topic)
                 time.sleep(0.005)
-                #print(text)
                 f.write(text)
-                no_message_count[topic] -= 1
-                if no_message_count[topic] == 0:
-                    topics_done_count += 1
+                message_count[topic] -= 1
+                if message_count[topic] == 0:
+                    c_t.remove(topic)
             except MyConsumerError as e:
                 print('Consumer Error: ', e)
                 continue
@@ -67,7 +68,7 @@ def system_test():
     threads = []
     # consumers consume
     for i in range(3):
-        t = threading.Thread(target = consume, args = (c, c_t, i,os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
+        t = multiprocessing.Process(target = consume, args = (c[i], c_t[i][:], os.getcwd() + '/tests/SystemTests/consumer_' + str(i + 1) + '.txt'))
         t.start()
         threads.append(t)
 
