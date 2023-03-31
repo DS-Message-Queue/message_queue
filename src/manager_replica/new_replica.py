@@ -182,13 +182,6 @@ class ManagerConnection:
                             self.__topics[topic_name] = {}
                         if partition_id not in self.__topics[topic_name]:
                             self.__topics[topic_name][partition_id] = {'message':[], 'm_id': [], 'subscribers':[]}
-                                    
-                        # Commented code used for multiple brokers
-                        # for consumer in self.__consumer:
-                        #     if topic_name in self.__consumer[consumer] and partition_id not in self.__consumer[consumer][topic_name]:
-                        #         self.__consumer[consumer][topic_name][partition_id] = {'positition': 0}
-                        #         self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + topic[0] + "', " + str(0) + ", " + str(result_c[1]) + ");")    
-                        #         self.conn.commit()
 
                     elif 'INSERT INTO message' in query:
                         topic_name = topic_name[1:-1]
