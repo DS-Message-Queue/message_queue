@@ -66,7 +66,7 @@ class MyConsumer():
         if r.status_code == 400:
             raise MyConsumerError(data['message'])
             
-    def Dequeue(self, topic) -> str:
+    def Dequeue(self, topic, partition_id = 0) -> str:
         '''Returns the log message that is dequed from the requested topic log queue'''
         if topic not in self.__topics:
             raise MyConsumerError('Not subscribed to topic' + topic + '.')
@@ -75,7 +75,12 @@ class MyConsumer():
 
         API_ENDPOINT = "/consumer/consume"
         url = HOST+PORT+API_ENDPOINT
-        payload = {'topic': topic, 'consumer_id' : consumer_id}
+
+        if partition_id != 0:
+            payload = {'topic': topic, 'consumer_id' : consumer_id, 'partition': partition_id}   
+
+        else: 
+            payload = {'topic': topic, 'consumer_id' : consumer_id}
         
         r = requests.get(url, params = payload)
         data = r.json()
@@ -95,7 +100,7 @@ class MyConsumer():
             return data['message']
         if r.status_code == 400:
             raise MyConsumerError(data['message'])
-
+    
     def Size(self, topic) -> int:
         '''Returns the size of log queue for the requested topic'''
         if topic not in self.__topics:
