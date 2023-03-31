@@ -161,7 +161,7 @@ class ManagerConnection:
                         final_query += message + ', ' + topic_name + ', ' + partition_id + ', ' + str(count) + ')'
                         query = final_query+" returning m_id;"
                     
-                    # acquire lock before updating shared variable
+                    # acquire lock before updating shared variables
                     self.__lock.acquire()
                     self.curr = self.conn.cursor()
                     self.curr.execute(query)
@@ -185,8 +185,6 @@ class ManagerConnection:
 
                     elif 'INSERT INTO message' in query:
                         topic_name = topic_name[1:-1]
-                        if partition_id not in self.__topics[topic_name]:
-                            print('UNACCEPTABLE')
                         self.__topics[topic_name][partition_id]['message'].append(message[1:-1])
                         self.__topics[topic_name][partition_id]['subscribers'].append(count)
                         self.__topics[topic_name][partition_id]['m_id'].append(m_id)
@@ -405,25 +403,15 @@ class ManagerConnection:
         self.__lock.release()
         return raise_success("Successfully fetched Partitions for topic - " + topic, {"partitions": partition})
 
-    def consume_message_with_partition(self, topic, consumer_id, partition, lock_acquired = False):
-        # partition = str(partition)
-        # consumer_id = str(consumer_id)
-        if not lock_acquired:
+    def consume_message_with_partition(self, topic, consumer_id, partition, from_consume_message=True):
+        
+        if not from_consume_message:
             self.get_updates()
 
-        if not lock_acquired:
-            isLockAvailable = self.__lock.acquire(blocking = False)
-            if isLockAvailable is False:
-                return raise_error("Lock cannot be acquired.")
-
         if topic not in self.__consumer[consumer_id]:
-            if not lock_acquired:
-                self.__lock.release()
             return raise_error(consumer_id + " did not subscribe to topic - " + topic)
 
         if partition not in self.__consumer[consumer_id][topic]:
-            if not lock_acquired:
-                self.__lock.release()
 
             # topic exists in self.__consumer[consumer_id] but partition doesn't
             # This is an internal error which should never happen
@@ -433,13 +421,17 @@ class ManagerConnection:
 
         if message_position >= len(self.__topics[topic][partition]['message']) \
         or self.__topics[topic][partition]['subscribers'][message_position] == 0:
-            if not lock_acquired:
-                self.__lock.release()
             self.get_updates()
             return raise_error("No new message is published to " + topic + ", " + partition + ".")
         
         m_id = self.__topics[topic][partition]['m_id'][message_position]
         message = self.__topics[topic][partition]['message'][message_position]
+        
+        # acquire lock before updating data
+        isLockAvailable = self.__lock.acquire(blocking = False)
+        if isLockAvailable is False:
+            return raise_error("Lock cannot be acquired.")
+
         self.__consumer[consumer_id][topic][partition]['position'] = self.__consumer[consumer_id][topic][partition]['position'] + 1
         self.__topics[topic][partition]['subscribers'][message_position] -= 1
 
@@ -449,8 +441,8 @@ class ManagerConnection:
         self.curr.execute("UPDATE message set subscribers = " + str(self.__topics[topic][partition]['subscribers'][message_position]) + " WHERE topic_name = '" + topic + "' and partition_id = " + str(partition) + " and message = '" + message + "' and m_id = " + str(m_id) + ";")
         self.conn.commit()
 
-        if not lock_acquired:
-            self.__lock.release()
+        # done updating data
+        self.__lock.release()
         
         return raise_success("Message fetched successfully.", {
             "message": message
@@ -459,22 +451,16 @@ class ManagerConnection:
 
     def consume_message(self, topic, consumer_id):
         try:
-            isLockAvailable = self.__lock.acquire(blocking = False)
-            if isLockAvailable is False:
-                return raise_error("Lock cannot be acquired.")
-
             if consumer_id not in self.__consumer:
-                self.__lock.release()
                 return raise_error("Consumer not found.")
             
             if topic not in self.__topics:
-                self.__lock.release()
                 self.get_updates()
                 return raise_error("Topic doesn't exist.")
             
             response = {}
             for partition in self.__topics[topic]:
-                response = self.consume_message_with_partition(topic, consumer_id, partition, lock_acquired = True)
+                response = self.consume_message_with_partition(topic, consumer_id, partition, from_consume_message=True)
                 if "No new message is published to" in response["message"]:
                     continue
                 else:
@@ -482,11 +468,9 @@ class ManagerConnection:
             
             if "No new message is published to" in response["message"]:
                 # checked all partitions, still no new message
-                self.__lock.release()
                 self.get_updates()
                 return raise_error("No new message is published to " + topic + ".")
 
-            self.__lock.release()
             return response
         
         except Exception as e:
