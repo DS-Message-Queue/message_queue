@@ -114,7 +114,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
     def process_transaction(self, transaction):
         req_type = transaction['req']
-        if req_type == 'Enqueue':
+        if req_type == 'Enqueue' or req_type == 'EnqueueWithPartition':
             res = self.publish_message(
                 transaction["producer_id"], transaction["topic"], transaction["message"])
             return res

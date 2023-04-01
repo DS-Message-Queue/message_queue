@@ -349,6 +349,33 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                         # continue
             return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
+        elif transaction_type == 'EnqueueWithPartition':
+            broker = transaction['partition']
+            if broker not in self.brokers:
+                output = {"status": "failure",
+                            "message": "partition does not exist."}
+                # return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+            else:
+                try:
+                    # START THE WAL LOGGING
+                    # txn_id = self.wal.logEvent(broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
+                    print("Called for broker",broker)
+                    output = self.brokers[broker].send_transaction(transaction)
+                    try:
+                        self.__health_checker.insert_into_broker(broker,str(datetime.now()))
+                        self.__health_checker.insert_into_producer(transaction['producer_id'],str(datetime.now()))
+                    except:
+                        pass
+                    # self.wal.logSuccess(txn_id, broker, "Enqueue", len(self.__producers) + 1, topic_requested, transaction['message'])
+                    # END THE WAL LOGGING
+                except Exception as e:
+                    print(e,"Here error")
+                    self.brokers.pop(broker, None)
+                    # output = {"status": "failure",
+                    #         "message": "Could not publish message"}
+                    # continue
+            return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
+
         else:
             output = {"status": "failure", "message": "Invalid Operation"}
             return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
