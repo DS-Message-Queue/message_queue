@@ -89,7 +89,7 @@ class MyServerHandler:
 
     def get_topics(self):
         # ListTopics
-        print('topics requested')
+        # print('topics requested')
         response = {}
         transaction = {'req': 'GetTopics'}
         ret = self.manager_rpc.send_transaction(transaction)
@@ -102,7 +102,7 @@ class MyServerHandler:
 
     def get_partition(self):
         # List Partitions for topic
-        print('partitions requested')
+        # ('partitions requested')
         json_is_valid = True
         data_json = dict(request.args)
         response = {}
@@ -130,7 +130,7 @@ class MyServerHandler:
 
     def dequeue(self):
         # dequeue
-        print("dequeue requested")
+        # print("dequeue requested")
         json_is_valid = True
         data_json = dict(request.args)
         response = {}
@@ -170,8 +170,8 @@ class MyServerHandler:
             if response['status'] == 'success':
                 status = 200
 
-            else:
-                print(response['message'])
+            # else:
+                # print(response['message'])
 
         else:
             print('invalid data in parameters')
@@ -184,7 +184,7 @@ class MyServerHandler:
 
     def size(self):
         # size
-        print("size requested")
+        # print("size requested")
         json_is_valid = True
         data_json = dict(request.args)
         response = {}
@@ -215,7 +215,7 @@ class MyServerHandler:
         return response, status
 
     def clear_db(self):
-        print('clear requested')
+        # print('clear requested')
         params = dict(request.args)
         response = {}
         status = 400
@@ -231,7 +231,7 @@ class MyServerHandler:
 
     def create_topic(self):
         # CreateTopic
-        print('create topic requested')
+        # print('create topic requested')
         data = request.data
         response = {}
         status = 400
@@ -259,7 +259,7 @@ class MyServerHandler:
 
     def consumer_register(self):
         # consumer register
-        print("consumer register requested")
+        # print("consumer register requested")
 
         data = request.data
         response = {}
@@ -293,7 +293,7 @@ class MyServerHandler:
 
     def producer_register(self):
         # producer register
-        print("producer register requested")
+        # ("producer register requested")
         data = request.data
         response = {}
         status = 400
@@ -322,7 +322,7 @@ class MyServerHandler:
 
     def enqueue(self):
         # enqueue
-        print("produce requested")
+        # print("produce requested")
         data = request.data
         response = {}
         status = 400

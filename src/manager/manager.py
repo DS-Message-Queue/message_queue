@@ -386,12 +386,8 @@ class Manager:
         self_thread.start()
 
         # HTTP Endpoint
-        t = multiprocessing.Process(target=self.serve_endpoint, args=(
-            name, http_host, http_port, grpc_host, grpc_port
-        ))
-        t.start()
+        self.serve_endpoint(name, http_host, http_port, grpc_host, grpc_port)
 
-        t.join()
         server_thread.join()
         self_thread.join()
     
