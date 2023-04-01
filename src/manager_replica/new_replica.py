@@ -319,10 +319,6 @@ class ManagerConnection:
 
         except:
             print("No results")
-            
-    def partition_id(self):
-        for consumer in self.__consumer:
-            self.current_partition[consumer] = 1
 
     async def consumer_register(self, topic):
         await self.get_updates()
@@ -364,6 +360,7 @@ class ManagerConnection:
                 else:
                     self.__consumer[str(consumer_id)][topic][partition[i]] = {'position': position[i]}
         
+        self.current_partition[str(consumer_id)] = 1
         self.__lock.release() 
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
@@ -412,7 +409,14 @@ class ManagerConnection:
     async def consume_message_with_partition(self, topic, consumer_id, partition, from_consume_message=False):
         
         if not from_consume_message:
-            await self.get_updates()
+            if consumer_id not in self.__consumer:
+                await self.get_updates()
+                return raise_error("Consumer not found.")
+            
+            if topic not in self.__topics:
+                await self.get_updates()
+                return raise_error("Topic doesn't exist.")
+            
 
         if topic not in self.__consumer[consumer_id]:
             return raise_error(consumer_id + " did not subscribe to topic - " + topic)
@@ -453,6 +457,25 @@ class ManagerConnection:
             "message": message
         })
 
+    async def select_partition(self, topic, consumer_id):
+        number_of_partitions = self.get_partitions(topic)
+
+        if self.current_partition[consumer_id] > number_of_partitions:
+            self.current_partition[consumer_id] = 1
+            partition = self.current_partition[consumer_id] 
+        
+        else:
+            partition = self.current_partition[consumer_id] 
+            self.current_partition[consumer_id] = (self.current_partition[consumer_id] + 1)
+        return partition
+
+
+    def get_partitions(self, topic):
+        count = 0
+        for _ in self.__topics[topic]:
+            count += 1
+
+        return count
 
     async def consume_message(self, topic, consumer_id):
         try:
@@ -463,9 +486,13 @@ class ManagerConnection:
                 await self.get_updates()
                 return raise_error("Topic doesn't exist.")
             
-            response = {}
-            for partition in self.__topics[topic]:
-                response = await self.consume_message_with_partition(topic, consumer_id, partition, from_consume_message=True)
+            partition = await self.select_partition(topic, consumer_id)
+
+            number_of_partitions = self. get_partitions(topic)
+            response = await self.consume_message_with_partition(topic, consumer_id, str(partition), from_consume_message=True)
+            while "No new message is published to" in response["message"] and partition+1 <= number_of_partitions:
+                partition = await self.select_partition(topic, consumer_id)
+                response = await self.consume_message_with_partition(topic, consumer_id, str(partition), from_consume_message=True)
                 if "No new message is published to" in response["message"]:
                     continue
                 else:
