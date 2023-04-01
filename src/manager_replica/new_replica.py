@@ -123,7 +123,7 @@ class ManagerConnection:
                 token=self.token
             ))
 
-    def get_updates_thread(self):
+    async def get_updates_task(self):
         """
             *** Make sure only one thread is running this ***
             *** DO NOT QUEUE UP ANOTHER get_updates if some thread is already running this ***
@@ -133,18 +133,18 @@ class ManagerConnection:
         while True:
             try:
                 Queries = self.stub.GetUpdates(m_pb2.Request())
-                topic_name = None
-                partition_id = None
-                message = None
-                m_id = None
-                count = 0
                 for q in Queries:
                     query = q.query
                     
                     # validate query
                     if "INSERT INTO " not in query or ";" not in query:
                         continue
-
+                    
+                    topic_name = None
+                    partition_id = None
+                    message = None
+                    m_id = None
+                    count = 0
                     if 'INSERT INTO message' in query:
                         final_query = 'INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('
                         length = len(final_query)
@@ -193,7 +193,7 @@ class ManagerConnection:
                         print('invalid query provided')
 
                     # make sure this thread does not eat up resources
-                    time.sleep(0.001)
+                    asyncio.sleep(0.001)
                 break
             except Exception as e:
                 print('exception:', e)
@@ -206,7 +206,7 @@ class ManagerConnection:
         self.__get_updates_lock.release()
 
     
-    def get_updates(self):
+    async def get_updates(self):
         """
             Get updates from the manager
         """
@@ -214,7 +214,8 @@ class ManagerConnection:
         if not acquired:
             # some thread is already getting updates
             return
-        threading.Thread(target=self.get_updates_thread).start()
+        # runs in the background
+        asyncio.create_task(self.get_updates_task())
 
     
     def initialize_dict(self):
@@ -318,10 +319,10 @@ class ManagerConnection:
         for consumer in self.__consumer:
             self.current_partition[consumer] = 1
 
-    def consumer_register(self, topic):
-        self.get_updates()
+    async def consumer_register(self, topic):
+        await self.get_updates()
         # sleep here so that some kind of update is gathered meanwhile
-        time.sleep(0.05)
+        asyncio.sleep(0.1)
 
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
@@ -362,14 +363,14 @@ class ManagerConnection:
         return raise_success("Consumer registered successfully.", {"consumer_id": consumer_id})
 
 
-    def list_topics(self):
+    async def list_topics(self):
 
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
         
-        self.get_updates()
-        time.sleep(0.05)
+        await self.get_updates()
+        asyncio.sleep(0.05)
         topic = []
         for res in self.__topics:
             topic.append(res)
@@ -381,13 +382,13 @@ class ManagerConnection:
         self.__lock.release()
         return raise_success("Successfully fetched topics.", {"topics": topic})
 
-    def list_partitions(self, topic):
+    async def list_partitions(self, topic):
 
         isLockAvailable = self.__lock.acquire(blocking=False)
         if isLockAvailable is False:
             return raise_error("Lock cannot be acquired.")
-        self.get_updates()
-        time.sleep(0.05)
+        await self.get_updates()
+        asyncio.sleep(0.05)
         partition = []
         self.curr = self.conn.cursor()
         self.curr.execute("SELECT partition_id from topic where topic_name = '" + topic + "';")
@@ -403,10 +404,10 @@ class ManagerConnection:
         self.__lock.release()
         return raise_success("Successfully fetched Partitions for topic - " + topic, {"partitions": partition})
 
-    def consume_message_with_partition(self, topic, consumer_id, partition, from_consume_message=True):
+    async def consume_message_with_partition(self, topic, consumer_id, partition, from_consume_message=False):
         
         if not from_consume_message:
-            self.get_updates()
+            await self.get_updates()
 
         if topic not in self.__consumer[consumer_id]:
             return raise_error(consumer_id + " did not subscribe to topic - " + topic)
@@ -421,7 +422,7 @@ class ManagerConnection:
 
         if message_position >= len(self.__topics[topic][partition]['message']) \
         or self.__topics[topic][partition]['subscribers'][message_position] == 0:
-            self.get_updates()
+            await self.get_updates()
             return raise_error("No new message is published to " + topic + ", " + partition + ".")
         
         m_id = self.__topics[topic][partition]['m_id'][message_position]
@@ -449,18 +450,18 @@ class ManagerConnection:
         })
 
 
-    def consume_message(self, topic, consumer_id):
+    async def consume_message(self, topic, consumer_id):
         try:
             if consumer_id not in self.__consumer:
                 return raise_error("Consumer not found.")
             
             if topic not in self.__topics:
-                self.get_updates()
+                await self.get_updates()
                 return raise_error("Topic doesn't exist.")
             
             response = {}
             for partition in self.__topics[topic]:
-                response = self.consume_message_with_partition(topic, consumer_id, partition, from_consume_message=True)
+                response = await self.consume_message_with_partition(topic, consumer_id, partition, from_consume_message=True)
                 if "No new message is published to" in response["message"]:
                     continue
                 else:
@@ -468,7 +469,7 @@ class ManagerConnection:
             
             if "No new message is published to" in response["message"]:
                 # checked all partitions, still no new message
-                self.get_updates()
+                await self.get_updates()
                 return raise_error("No new message is published to " + topic + ".")
 
             return response
@@ -477,31 +478,23 @@ class ManagerConnection:
             print('exception in consume message:', e) 
 
 
-    def log_size(self, topic_name, consumer_id):
+    async def log_size(self, topic_name, consumer_id):
         isLockAvailable = self.__lock.acquire(blocking=False)
         
         if isLockAvailable is False:
-            # with open('errorlog.txt', 'a') as f:
-            #     f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Lock cannot be acquired.")
         
-        self.get_updates()
+        await self.get_updates()
         if topic_name not in self.__topics:
             self.__lock.release()
-            # with open('errorlog.txt', 'a') as f:
-            #     f.write("Topic " + topic_name + " doesn't exist. : " + str(self.__topics))
             return raise_error("Topic " + topic_name + " doesn't exist.")
         
         if consumer_id not in self.__consumer:
             self.__lock.release()
-            # with open('errorlog.txt', 'a') as f:
-            #     f.write(consumer_id + " id Consumer doesn't exist. : " + str(self.__consumer))
             return raise_error("Consumer doesn't exist.")
         
         if topic_name not in self.__consumer[consumer_id]:
             self.__lock.release()
-            # with open('errorlog.txt', 'a') as f:
-            #     f.write(consumer_id + " id Consumer is not subscribed to " + topic_name + ". : " + str(self.__consumer))
             return raise_error("Consumer is not subscribed to " + topic_name + ".")
         
         size = 0
@@ -534,47 +527,41 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
         self.manager.register_replica_if_required()
 
         # get updates from the manager
-        self.manager.get_updates()
+        asyncio.run(self.manager.get_updates())
 
     def SendTransaction(self, transaction_req, context):
-        print("SendTransaction")
+        # print("SendTransaction")
         transaction = json.loads(transaction_req.data)
-        response = self.process_transaction(transaction)
+        response = asyncio.run(self.process_transaction(transaction))
         return m_pb2.TransactionResponse(data=json.dumps(response).encode('utf-8'))
     
-    def process_transaction(self, transaction):
-        print(transaction)
+    async def process_transaction(self, transaction):
+        # print(transaction)
         
         if transaction['req'] == "ConsumerRegister":
-            response = self.manager.consumer_register(transaction['topic'])
+            response = await self.manager.consumer_register(transaction['topic'])
             return response
 
         elif transaction['req'] == 'GetTopics':
-            return self.manager.list_topics()
+            return await self.manager.list_topics()
 
         elif transaction['req'] == 'GetPartition':
             topic = transaction['topic']
-            return self.manager.list_partitions(topic)
+            return await self.manager.list_partitions(topic)
 
         elif transaction['req'] == 'DequeueWithPartition':
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
             partition = transaction['partition']
 
-            response = self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
-            # if "No new message is published to" in response["message"] or \
-            # "Topic doesn't exist." in response["message"]:
-            #     return self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
+            response = await self.manager.consume_message_with_partition(str(topic), str(consumer_id), str(partition))
             return response
 
         elif transaction['req'] == 'Dequeue':
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
 
-            response = self.manager.consume_message(topic, str(consumer_id))
-            # if "No new message is published to" in response["message"] or \
-            # "Topic doesn't exist." in response["message"]:
-            #     return self.manager.consume_message(topic, str(consumer_id))
+            response = await self.manager.consume_message(topic, str(consumer_id))
             return response
 
         elif transaction['req'] == 'ClearDatabase':
@@ -592,7 +579,7 @@ class ManagerReplicaService(m_pb2_grpc.ManagerServiceServicer):
             topic = transaction['topic']
             consumer_id = transaction['consumer_id']
 
-            return self.manager.log_size(topic, str(consumer_id))
+            return await self.manager.log_size(topic, str(consumer_id))
 
 class ManagerReplica:
     def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
@@ -604,12 +591,9 @@ class ManagerReplica:
         ))
         t.start()
         # start grpc server for replica
-        server_thread = multiprocessing.Process(target=self.serve_grpc)
-        server_thread.start()
+        self.serve_grpc()
         
-        # self.serve_endpoint(name, http_host, http_port, grpc_host, grpc_port)
         t.join()
-        server_thread.join()
 
     def serve_endpoint(self, name, http_host, http_port, grpc_host, grpc_port):
         MyServer(name, http_host, http_port, grpc_host, grpc_port)

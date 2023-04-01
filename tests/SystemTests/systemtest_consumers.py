@@ -1,6 +1,5 @@
 from src.Consumer.consumer_client import MyConsumer, MyConsumerError
 import time
-import threading
 import multiprocessing
 import os
 
@@ -23,7 +22,7 @@ def consume(c, c_t,filename):
         for topic in topics:
             try:
                 text = c.Dequeue(topic)
-                time.sleep(0.005)
+                time.sleep(0.02)
                 f.write(text)
                 message_count[topic] -= 1
                 if message_count[topic] == 0:
