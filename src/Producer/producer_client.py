@@ -72,14 +72,19 @@ class MyProducer():
             topicsList = received_data['topics']
             return list(topicsList)
 
-    def Enqueue(self, p_topic, p_message):
+    def Enqueue(self, p_topic, p_message, p_partition = 0):
         if p_topic not in self.__topics:
             raise MyProducerError("Cannot publish to this topic.")
         # This Function is used to Enqueue the created log message in the distributed queue
         API_ENDPOINT = "/producer/produce"
         url = HOST+PORT+API_ENDPOINT
         # HTTP link is used to connect to the server
-        PARAMS = {'topic': p_topic,
+
+        if p_partition != 0:
+            PARAMS = {'topic': p_topic,
+                  'producer_id': self.__topics[p_topic], 'message': p_message, 'partition': p_partition}
+        else:
+            PARAMS = {'topic': p_topic,
                   'producer_id': self.__topics[p_topic], 'message': p_message}
         # The above 3 parameters indicated topicname,producer-id and log_message created by the producer.
 

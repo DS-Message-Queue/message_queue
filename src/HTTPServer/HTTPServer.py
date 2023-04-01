@@ -354,6 +354,27 @@ class MyServerHandler:
             else:
                 if response['status'] == 'success':
                     status = 200
+        elif json_is_valid and len(data_json) == 4 and 'topic' in data_json \
+                and 'producer_id' in data_json \
+                and 'message' in data_json:
+            topic = data_json['topic']
+            producer_id = data_json['producer_id']
+            message = data_json['message']
+            partition = data_json['partition']
+            # enqueue
+            transaction = {'req': 'EnqueueWithPartition', 'topic': topic,
+                           "producer_id": producer_id, "message": message, 'partition': partition}
+            ret = self.manager_rpc.send_transaction(transaction)
+            response.update(ret)
+            
+            if 'status' not in response:
+                # incorrect params in data_json
+                print('invalid response received from rpc server:', response)
+                response['status'] = 'failure'
+                response['message'] = 'byzentine fault!'
+            else:
+                if response['status'] == 'success':
+                    status = 200
         else:
             # incorrect params in data_json
             response['status'] = 'failure'

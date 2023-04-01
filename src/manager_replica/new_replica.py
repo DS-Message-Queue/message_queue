@@ -183,6 +183,11 @@ class ManagerConnection:
                         if partition_id not in self.__topics[topic_name]:
                             self.__topics[topic_name][partition_id] = {'message':[], 'm_id': [], 'subscribers':[]}
 
+                        for consumer in self.__consumer:
+                            if (topic_name in self.__consumer[consumer]) and (partition_id not in self.__consumer[consumer][topic_name]):
+                                self.__consumer[consumer][topic_name][partition_id] = {'position': 0}
+                                self.curr.execute("INSERT INTO consumer(c_id, topic_name, position, partition_id) VALUES(" + str(consumer) + ", '" + topic_name + "', " + str(0) + ", " + partition_id + ");")    
+
                     elif 'INSERT INTO message' in query:
                         topic_name = topic_name[1:-1]
                         self.__topics[topic_name][partition_id]['message'].append(message[1:-1])
@@ -415,8 +420,7 @@ class ManagerConnection:
         if partition not in self.__consumer[consumer_id][topic]:
 
             # topic exists in self.__consumer[consumer_id] but partition doesn't
-            # This is an internal error which should never happen
-            return raise_error(consumer_id + " internal partition error - " + topic)
+            return raise_error("Partition " + partition + " not found for - " + topic)
         
         message_position = self.__consumer[consumer_id][topic][partition]['position']
 
