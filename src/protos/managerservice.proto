@@ -16,6 +16,7 @@ message BrokerDetails{
  string host = 1;
  string port = 2;
  string token = 3;  // authentication
+ string raft_port = 4;
 }
 
 message Query{

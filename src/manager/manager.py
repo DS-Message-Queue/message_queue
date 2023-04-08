@@ -29,11 +29,17 @@ class BrokerConnection:
         # bind the client and the server
         self.stub = b_pb2_grpc.BrokerServiceStub(self.channel)
 
-    def get_updates(self):
-        Queries = self.stub.GetUpdates(b_pb2.Request())
-        for q in Queries:
-            yield q.query
-        # return Queries.queries
+    def get_updates(self, topics):
+        for topic in topics:
+            for partition in topics[topic]:
+                if partition == 'producers' or partition == 'consumers':
+                    continue
+                Queries = self.stub.GetUpdates(b_pb2.Request(
+                    topic = topic, partition = str(partition)
+                ))
+                for q in Queries:
+                    yield q.query
+                
 
     def send_transaction(self, transaction):
         Response = self.stub.SendTransaction(b_pb2.Transaction(
@@ -72,6 +78,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.__producers = {}
         self.__health_checker = HealthChecker()
         self.brokers_connected = []
+        self.raft_ports = {}
+        self.replicas = {}
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
@@ -83,10 +91,11 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         if len(self.__queries) == 0:
             self.wal.clearlogfile()
 
-    def connect_to_broker(self, host, port):
+    def connect_to_broker(self, host, port, raftport):
         self.total_brokers_connected += 1
         broker = 1 + len(self.brokers_connected)
-
+        if broker not in self.raft_ports:
+            self.raft_ports[broker] = raftport
         # store the connection in the broker
         self.brokers[broker] = BrokerConnection(host, port)
 
@@ -98,7 +107,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
     def RegisterBroker(self, broker, context):
         print('register broker called')
-        broker_id = self.connect_to_broker(broker.host, broker.port)
+        broker_id = self.connect_to_broker(broker.host, broker.port, broker.raft_port)
         try:
             self.__health_checker.insert_into_broker(broker_id,str(datetime.now()))
         except:
@@ -108,7 +117,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             "topics": self.__topics,
             "producers": self.__producers
         }
+
         self.brokers[broker_id].send_transaction(transaction)
+        
         return pb2.Status(status=True, brokerId=broker_id)
 
     def HealthCheck(self, heartbeat, context):
@@ -145,8 +156,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         for broker in self.brokers:
             res = None
             try:
-                res = self.brokers[broker].get_updates()
-            except:
+                res = self.brokers[broker].get_updates(self.__topics)
+            except Exception as e:
+                print('reveiveUpdates Exception:', e)
                 pass
             try:
                 self.__health_checker.insert_into_broker(broker,str(datetime.now()))
@@ -224,8 +236,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     # START THE WAL LOGGING
                     # Setting partition id default to 1
                     # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
+                    print(self.brokers)
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
+                        if broker not in self.replicas:
+                            self.replicas[broker] = [broker, (broker%self.total_brokers_connected)+1, ((broker+1)%self.total_brokers_connected)+1]
+                        transaction_to_broker = {'req': "ReplicaHandle", "replica_list": [(topic_requested, str(broker)), (topic_requested, str((broker%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))], "other_raftports": [self.raft_ports[(broker%self.total_brokers_connected)+1], self.raft_ports[((broker+1)%self.total_brokers_connected)+1]]}
+                        self.brokers[broker].send_transaction(transaction_to_broker)
+                        
+                        print(self.replicas)
                         try:
                             self.__health_checker.insert_into_broker(broker,str(datetime.now()))
                         except:
@@ -243,9 +262,10 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
                     # self.wal.logSuccess(txn_id, broker, "Create Topic", topic_requested)
                     # END WAL TRANSACTION
-                except:
+                except Exception as e:
                     output = {"status": "failure",
                               "message": "Topic creation failed."}
+                    print('exectpiton in create: ', e)
                 self.__lock.release()
                 return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
