@@ -146,7 +146,7 @@ class MetaStorer(object):
 
 
 JOURNAL_FORMAT_VERSION = 1
-APP_NAME = b'PYSYNCOBJ'
+APP_NAME = b'src.pysyncobjm'
 APP_VERSION = str.encode(VERSION)
 
 NAME_SIZE = 24

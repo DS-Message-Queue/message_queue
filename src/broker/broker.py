@@ -147,6 +147,8 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         # poll for messages
         threading.Thread(target=self.poll_thread).start()
 
+        self.__transport._onTick()
+
     def poll_thread(self):
         while True:
             # select command is used internally and callbacks are attached
@@ -209,15 +211,19 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             self.__producers = transaction['producers']
             return {}
         elif req_type == 'ReplicaHandle':
-            topic_partitions = transaction['replica_list']
+            topic_partitions = transaction['topic_partitions']
             raftports = transaction['other_raftports']
+
+            print('raft ports - ', raftports)
             
             # create Raft Instances
-            raftothernodes = []
-            for port in raftports:
-                raftothernodes.append(self.__portToTCPNode[port])
-            for topic_partition in topic_partitions:
-                topic_partition = tuple(topic_partition)
+            print('self tcp, ', self.__portToTCPNode)
+            for i in range(len(topic_partitions)):
+                raftothernodes = []
+                for port in raftports[i]:
+                    raftothernodes.append(self.__portToTCPNode[port])
+                
+                topic_partition = tuple(topic_partitions[i])
                 print(topic_partition)
                 self.__topic_partition_to_raft[topic_partition] = Raft(self.__transport, topic_partition
                                                                        , self.__selfnode, raftothernodes, self.__conf)

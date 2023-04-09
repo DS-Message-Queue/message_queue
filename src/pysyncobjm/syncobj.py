@@ -24,7 +24,7 @@ except ImportError:  # python3
     def iteritems(v):
         return v.items()
 
-import pysyncobj.pickle as pickle
+import src.pysyncobjm.pickle as pickle
 
 from .dns_resolver import globalDnsResolver
 from .poller import createPoller
@@ -88,7 +88,7 @@ class SyncObjConsumer(object):
             self.__dict__[k] = v
 
 
-# https://github.com/bakwc/PySyncObj
+# https://github.com/bakwc/src.pysyncobjm
 
 class SyncObj(object):
     def __init__(self, topic_partition, selfNode, otherNodes, conf=None, consumers=None, nodeClass = TCPNode, transport = None, transportClass = TCPTransport):
@@ -337,7 +337,7 @@ class SyncObj(object):
         :param newVersion: new code version
         :type int
         :param callback: will be called on success or fail
-        :type callback: function(`FAIL_REASON <#pysyncobj.FAIL_REASON>`_, None)
+        :type callback: function(`FAIL_REASON <#src.pysyncobjm.FAIL_REASON>`_, None)
         """
         assert isinstance(newVersion, int)
         if newVersion > self.__selfCodeVersion:
@@ -354,7 +354,7 @@ class SyncObj(object):
         :param node: node object or 'nodeHost:nodePort'
         :type node: Node | str
         :param callback: will be called on success or fail
-        :type callback: function(`FAIL_REASON <#pysyncobj.FAIL_REASON>`_, None)
+        :type callback: function(`FAIL_REASON <#src.pysyncobjm.FAIL_REASON>`_, None)
         """
         if not self.__conf.dynamicMembershipChange:
             raise Exception('dynamicMembershipChange is disabled')
@@ -370,7 +370,7 @@ class SyncObj(object):
         :param node: node object or 'nodeHost:nodePort'
         :type node: Node | str
         :param callback: will be called on success or fail
-        :type callback: function(`FAIL_REASON <#pysyncobj.FAIL_REASON>`_, None)
+        :type callback: function(`FAIL_REASON <#src.pysyncobjm.FAIL_REASON>`_, None)
         """
         if not self.__conf.dynamicMembershipChange:
             raise Exception('dynamicMembershipChange is disabled')
@@ -533,7 +533,7 @@ class SyncObj(object):
             pass
 
     def doTick(self, timeToWait=0.0):
-        """Performs single tick. Should be called manually if `autoTick <#pysyncobj.SyncObjConf.autoTick>`_ disabled
+        """Performs single tick. Should be called manually if `autoTick <#src.pysyncobjm.SyncObjConf.autoTick>`_ disabled
 
         :param timeToWait: max time to wait for next tick. If zero - perform single tick without waiting for new events.
             Otherwise - wait for new socket event and return.
@@ -1456,7 +1456,7 @@ def replicated(*decArgs, **decKwargs):
     """Replicated decorator. Use it to mark your class members that modifies
     a class state. Function will be called asynchronously. Function accepts
     flowing additional parameters (optional):
-        'callback': callback(result, failReason), failReason - `FAIL_REASON <#pysyncobj.FAIL_REASON>`_.
+        'callback': callback(result, failReason), failReason - `FAIL_REASON <#src.pysyncobjm.FAIL_REASON>`_.
         'sync': True - to block execution and wait for result, False - async call. If callback is passed,
             'sync' option is ignored.
         'timeout': if 'sync' is enabled, and no result is available for 'timeout' seconds -

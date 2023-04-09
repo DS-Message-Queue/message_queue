@@ -1,7 +1,7 @@
 import os
 import gzip
 import logging
-import pysyncobj.pickle as pickle
+import src.pysyncobjm.pickle as pickle
 
 from io import BytesIO
 from .atomic_replace import atomicReplace

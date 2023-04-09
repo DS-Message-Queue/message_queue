@@ -15,7 +15,7 @@ class SERIALIZER_STATE:
     FAILED = 3              #: Serialization failed (should be returned only one time after finished).
 
 class SyncObjConf(object):
-    """PySyncObj configuration object"""
+    """src.pysyncobjm configuration object"""
 
     def __init__(self, **kwargs):
 
@@ -106,7 +106,7 @@ class SyncObjConf(object):
         self.logCompactionBatchSize = kwargs.get('logCompactionBatchSize', 2 ** 16)
 
         #: If true - commands will be enqueued and executed after leader detected.
-        #: Otherwise - `FAIL_REASON.MISSING_LEADER <#pysyncobj.FAIL_REASON.MISSING_LEADER>`_ error will be emitted.
+        #: Otherwise - `FAIL_REASON.MISSING_LEADER <#src.pysyncobjm.FAIL_REASON.MISSING_LEADER>`_ error will be emitted.
         #: Leader is missing when esteblishing connection or when election in progress.
         self.commandsWaitLeader = kwargs.get('commandsWaitLeader', True)
 
@@ -150,7 +150,7 @@ class SyncObjConf(object):
         self.serializer = kwargs.get('serializer', None)
 
         #: Check custom serialization state, for async serializer.
-        #: Should return one of `SERIALIZER_STATE <#pysyncobj.SERIALIZER_STATE>`_.
+        #: Should return one of `SERIALIZER_STATE <#src.pysyncobjm.SERIALIZER_STATE>`_.
         self.serializeChecker = kwargs.get('serializeChecker', None)
 
         #: Custom deserialize function, it will be called when restore from fullDump.

@@ -42,9 +42,11 @@ class BrokerConnection:
                 
 
     def send_transaction(self, transaction):
+
         Response = self.stub.SendTransaction(b_pb2.Transaction(
             data=bytes(json.dumps(transaction).encode('utf-8'))
         ))
+
         response = json.loads(Response.data)
         return response
     
@@ -80,6 +82,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.brokers_connected = []
         self.raft_ports = {}
         self.replicas = {}
+        self.partition_raftports = {}
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
@@ -236,15 +239,34 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     # START THE WAL LOGGING
                     # Setting partition id default to 1
                     # txn_id = self.wal.logEvent(broker, "Create Topic", topic_requested)
-                    print(self.brokers)
+                    
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
+                        self.partition_raftports = {}
+                        self.total_brokers_connected = len(self.brokers)
                         if broker not in self.replicas:
-                            self.replicas[broker] = [broker, (broker%self.total_brokers_connected)+1, ((broker+1)%self.total_brokers_connected)+1]
-                        transaction_to_broker = {'req': "ReplicaHandle", "replica_list": [(topic_requested, str(broker)), (topic_requested, str((broker%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))], "other_raftports": [self.raft_ports[(broker%self.total_brokers_connected)+1], self.raft_ports[((broker+1)%self.total_brokers_connected)+1]]}
+                            self.replicas[broker] = [(topic_requested, str(broker)), (topic_requested, str(((broker)%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))]
+                            topic_keys = []
+                            raftportstosend = []
+                            for partition in self.replicas[broker]:
+                                broker_p = int(partition[1])
+                                topic_keys.append(partition)
+                                if ((broker_p+2)%self.total_brokers_connected) == 0:
+                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[self.total_brokers_connected], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+                                
+                                elif((broker_p+3)%self.total_brokers_connected) == 0:
+                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[self.total_brokers_connected]])
+                                
+                                else:
+                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+
+                            
+                            for partition in raftportstosend:    
+                                partition.remove(self.raft_ports[broker])
+                        
+                        transaction_to_broker = {'req': "ReplicaHandle", "topic_partitions": topic_keys, "other_raftports": raftportstosend}
                         self.brokers[broker].send_transaction(transaction_to_broker)
                         
-                        print(self.replicas)
                         try:
                             self.__health_checker.insert_into_broker(broker,str(datetime.now()))
                         except:

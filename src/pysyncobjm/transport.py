@@ -16,7 +16,7 @@ class TransportNotReadyError(Exception):
 
 
 class Transport(object):
-    """Base class for implementing a transport between PySyncObj nodes"""
+    """Base class for implementing a transport between src.pysyncobjm nodes"""
 
     def __init__(self, syncobj, selfNode, otherNodes):
         """
@@ -105,7 +105,7 @@ class Transport(object):
 
     # Helper functions so you don't need to check for the callbacks manually in subclasses
     def _onMessageReceived(self, node, message):
-        # this is set in pysyncobj
+        # this is set in src.pysyncobjm
         # for callback in self._onMessageReceivedCallbacks:
         #     callback(node, message)
         if message['partition'] in self._onMessageReceivedCallbacks:
@@ -205,7 +205,7 @@ class TCPTransport(Transport):
         """
 
         super(TCPTransport, self).__init__(None, selfNode, otherNodes)
-        # decoupling transport and pysyncobj
+        # decoupling transport and src.pysyncobjm
         self._conf = conf
         self._poller = poller
 
@@ -226,7 +226,7 @@ class TCPTransport(Transport):
         self._ready = False
         self._send_random_sleep_duration = 0
 
-        # do this in pysyncobj.__init__
+        # do this in src.pysyncobjm.__init__
         # self._syncObj.addOnTickCallback(self._onTick)
 
         for node in otherNodes:
@@ -405,7 +405,7 @@ class TCPTransport(Transport):
         Callback for the utility messages
 
         :param res: result of the command
-        :param err: error code (one of pysyncobj.config.FAIL_REASON)
+        :param err: error code (one of src.pysyncobjm.config.FAIL_REASON)
         :param conn: utility connection
         :param args: command with arguments
         """
