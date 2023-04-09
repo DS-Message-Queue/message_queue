@@ -29,16 +29,12 @@ class BrokerConnection:
         # bind the client and the server
         self.stub = b_pb2_grpc.BrokerServiceStub(self.channel)
 
-    def get_updates(self, topics):
-        for topic in topics:
-            for partition in topics[topic]:
-                if partition == 'producers' or partition == 'consumers':
-                    continue
-                Queries = self.stub.GetUpdates(b_pb2.Request(
-                    topic = topic, partition = str(partition)
-                ))
-                for q in Queries:
-                    yield q.query
+    def get_updates(self, topic, partition):
+        Queries = self.stub.GetUpdates(b_pb2.Request(
+            topic = topic, partition = partition
+        ))
+        for q in Queries:
+            yield q.query
                 
 
     def send_transaction(self, transaction):
@@ -82,7 +78,6 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.brokers_connected = []
         self.raft_ports = {}
         self.replicas = {}
-        self.partition_raftports = {}
         self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
@@ -156,10 +151,29 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             yield pb2.Query(query=q[1])
 
     def ReceiveUpdatesFromBroker(self,req, context):
+        visited = set()
         for broker in self.brokers:
             res = None
             try:
-                res = self.brokers[broker].get_updates(self.__topics)
+                if broker not in self.replicas:
+                    continue
+                for topic_partition in self.replicas[broker]:
+                    if topic_partition in visited:
+                        continue
+                    res = self.brokers[broker].get_updates(topic_partition[0], topic_partition[1])
+
+                    # process result
+                    if res is not None:
+                        for query in res:
+                            # WAL start
+                            self.__db.run_query(query)
+                            # WAL end
+
+                            # wal log start here and end when query is sent to replica
+                            txn_id = self.wal.logEvent("query", query)
+                            self.__queries.append((txn_id, query))
+                            
+                    visited.add(topic_partition)
             except Exception as e:
                 print('reveiveUpdates Exception:', e)
                 pass
@@ -167,16 +181,31 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 self.__health_checker.insert_into_broker(broker,str(datetime.now()))
             except:
                 pass
-            if res is not None:
-                for query in res:
-                    # WAL start
-                    self.__db.run_query(query)
-                    # WAL end
-
-                    # wal log start here and end when query is sent to replica
-                    txn_id = self.wal.logEvent("query", query)
-                    self.__queries.append((txn_id, query))
         return pb2.UpdatesFromBroker()
+    
+    def send_replica_handle(self, broker, topic_requested):
+        self.total_brokers_connected = len(self.brokers)
+        topic_keys = []
+        raftportstosend = []
+        if broker not in self.replicas:
+            self.replicas[broker] = [(topic_requested, str(broker)), (topic_requested, str(((broker)%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))]
+        for partition in self.replicas[broker]:
+            broker_p = int(partition[1])
+            topic_keys.append(partition)
+            if ((broker_p+2)%self.total_brokers_connected) == 0:
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[self.total_brokers_connected], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+            
+            elif((broker_p+3)%self.total_brokers_connected) == 0:
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[self.total_brokers_connected]])
+            
+            else:
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+         
+        for partition in raftportstosend:    
+            partition.remove(self.raft_ports[broker])
+        
+        transaction_to_broker = {'req': "ReplicaHandle", "topic_partitions": topic_keys, "other_raftports": raftportstosend}
+        self.brokers[broker].send_transaction(transaction_to_broker)
 
     def SendTransaction(self, transaction_req, context):
         transaction = json.loads(transaction_req.data)
@@ -242,30 +271,8 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     
                     for broker in self.brokers:
                         self.brokers[broker].send_transaction(transaction)
-                        self.partition_raftports = {}
-                        self.total_brokers_connected = len(self.brokers)
-                        if broker not in self.replicas:
-                            self.replicas[broker] = [(topic_requested, str(broker)), (topic_requested, str(((broker)%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))]
-                            topic_keys = []
-                            raftportstosend = []
-                            for partition in self.replicas[broker]:
-                                broker_p = int(partition[1])
-                                topic_keys.append(partition)
-                                if ((broker_p+2)%self.total_brokers_connected) == 0:
-                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[self.total_brokers_connected], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
-                                
-                                elif((broker_p+3)%self.total_brokers_connected) == 0:
-                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[self.total_brokers_connected]])
-                                
-                                else:
-                                    raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
-
-                            
-                            for partition in raftportstosend:    
-                                partition.remove(self.raft_ports[broker])
                         
-                        transaction_to_broker = {'req': "ReplicaHandle", "topic_partitions": topic_keys, "other_raftports": raftportstosend}
-                        self.brokers[broker].send_transaction(transaction_to_broker)
+                        self.send_replica_handle(broker, topic_requested)
                         
                         try:
                             self.__health_checker.insert_into_broker(broker,str(datetime.now()))
@@ -310,6 +317,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     for broker in self.brokers:
                         input = {'req': "CreateTopic", "topic": topic_requested}
                         self.brokers[broker].send_transaction(input)
+                        self.send_replica_handle(broker, topic_requested)
                         try:
                             self.__health_checker.insert_into_broker(broker, str(datetime.now()))
                         except:

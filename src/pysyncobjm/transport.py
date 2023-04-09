@@ -45,7 +45,6 @@ class Transport(object):
         :param callback callback
         :type callback function(node: Node, message: any) or None
         """
-
         self._onMessageReceivedCallbacks[topic_partition] = callback
 
     def setOnNodeConnectedCallback(self, callback):

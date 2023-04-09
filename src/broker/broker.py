@@ -100,12 +100,15 @@ class Raft(SyncObj):
     
     @replicated
     def append_query(self, query):
-        print('appending query')
+        print('append_query executed')
         self.queries.append(query)
 
     @replicated
     def clear_queries(self):
         self.queries.clear()
+
+    def get_queries(self):
+        return self.queries.copy()
 
 
 class BrokerService(b_pb2_grpc.BrokerServiceServicer):
@@ -147,7 +150,8 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         # poll for messages
         threading.Thread(target=self.poll_thread).start()
 
-        self.__transport._onTick()
+        # init transport
+        # self.__transport._onTick()
 
     def poll_thread(self):
         while True:
@@ -170,16 +174,13 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
     def GetUpdates(self, request, context):
         # get the queries from the partition
-        temp = []
-        try:
-            topic_partition = (request.topic, request.partition)
-            temp.extend(self.__topic_partition_to_raft[topic_partition].queries)
-            self.__topic_partition_to_raft[topic_partition].clear_queries()
-        except Exception as e:
-            # print('GetUpdates Exception:', e)
-            pass
+        topic_partition = (request.topic, request.partition)
+        temp = self.__topic_partition_to_raft[topic_partition].get_queries()
+        self.__topic_partition_to_raft[topic_partition].clear_queries()
         # Send data from here to Manager
+        # print(temp)
         for query in temp:
+            # print(query)
             yield b_pb2.Query(query=query)
 
     def SendTransaction(self, transaction_req, context):
@@ -267,6 +268,11 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
                     "subscribers": 0
                 }]
             }
+
+        topic_partition = (topic_name, str(self.broker_id))
+        if topic_partition not in self.__topic_partition_to_raft:
+            self.__publish_lock.release()
+            return raise_error("Raft Instance not ready.")
 
         query = "INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + \
                 "', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + \
