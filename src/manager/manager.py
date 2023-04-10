@@ -30,6 +30,9 @@ class BrokerConnection:
         self.stub = b_pb2_grpc.BrokerServiceStub(self.channel)
 
     def get_updates(self, topic, partition):
+        """
+            Get updates the corresponding from broker
+        """
         Queries = self.stub.GetUpdates(b_pb2.Request(
             topic = topic, partition = partition
         ))
@@ -66,7 +69,6 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
 
     def __init__(self) -> None:
         super().__init__()
-        self.total_brokers_connected = 0
         self.last_picked_broker = 0
         self.__lock = threading.Lock()
         self.brokers = {}
@@ -78,20 +80,34 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         self.brokers_connected = []
         self.raft_ports = {}
         self.replicas = {}
-        self.last_inactive_broker = 1
         self.__topics, self.__producers, self.__consumers = self.__db.recover_from_crash(
             self.__topics, self.__producers, self.__consumers)
         
         self.wal = WriteAheadLog()
+
+        # to detect broker crashes
+        self.last_broker_time = {}
+        self.global_time = 0
         
         # Perform WAL Recovery
         self.__queries = CrashRecovery().recoverLogs("query")
         if len(self.__queries) == 0:
             self.wal.clearlogfile()
 
+    def __get_new_broker_id(self):
+        if len(self.brokers_connected) == 0:
+            return 1
+        
+        # see if there exists an unused id
+        max_broker_id = max(self.brokers_connected)
+        for id in range(1, max_broker_id):
+            if id not in self.brokers_connected:
+                return id
+        return len(self.brokers_connected) + 1
+
     def connect_to_broker(self, host, port, raftport):
-        self.total_brokers_connected += 1
-        broker = 1 + len(self.brokers_connected)
+        # set the first unused id
+        broker = self.__get_new_broker_id()
         if broker not in self.raft_ports:
             self.raft_ports[broker] = raftport
         # store the connection in the broker
@@ -113,14 +129,23 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         transaction = {
             "req": "Init",
             "topics": self.__topics,
-            "producers": self.__producers
+            "producers": self.__producers,
         }
 
         self.brokers[broker_id].send_transaction(transaction)
+
+        # make sure the broker gets get all the topics
+        if len(self.brokers_connected) >= 4:
+            for broker in self.brokers_connected:
+                for topic in self.__topics:
+                    self.send_replica_handle(broker, topic)
         
         return pb2.Status(status=True, brokerId=broker_id)
 
     def HealthCheck(self, heartbeat, context):
+        self.global_time = time.process_time()
+        if heartbeat.broker_id > 0:
+            self.last_broker_time[heartbeat.broker_id] = self.global_time
         return heartbeat
 
     def RegisterReplica(self, replica_details, context):
@@ -151,8 +176,18 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             yield pb2.Query(query=q[1])
 
     def ReceiveUpdatesFromBroker(self,req, context):
+        # simultaneous calls could possibly be made but should be avoided
         visited = set()
-        for broker in self.brokers:
+        brokers = [b for b in self.brokers]
+        for broker in brokers:
+            diff = self.global_time - self.last_broker_time[broker] \
+            if broker in self.last_broker_time else self.global_time
+            if diff > 1:
+                # broker has been inactive for a long time
+                print('broker', broker, 'disconnected.')
+                self.brokers.pop(broker, None)
+                if broker in self.brokers_connected: self.brokers_connected.remove(broker)
+
             res = None
             try:
                 if broker not in self.replicas:
@@ -175,8 +210,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                             
                     visited.add(topic_partition)
             except Exception as e:
-                print('reveiveUpdates Exception:', e)
-                pass
+                print('ReceiveUpdatesFromBroker exception:', e)
+                self.brokers.pop(broker, None)
+                if broker in self.brokers_connected: self.brokers_connected.remove(broker)
             try:
                 self.__health_checker.insert_into_broker(broker,str(datetime.now()))
             except:
@@ -184,27 +220,27 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
         return pb2.UpdatesFromBroker()
     
     def send_replica_handle(self, broker, topic_requested):
-        self.total_brokers_connected = len(self.brokers)
-        topic_keys = []
+        total_brokers_connected = len(self.brokers)
         raftportstosend = []
+        topic_partitions = [(topic_requested, str(broker)), (topic_requested, str(((broker)%total_brokers_connected)+1)), (topic_requested, str(((broker+1)%total_brokers_connected)+1))]
         if broker not in self.replicas:
-            self.replicas[broker] = [(topic_requested, str(broker)), (topic_requested, str(((broker)%self.total_brokers_connected)+1)), (topic_requested, str(((broker+1)%self.total_brokers_connected)+1))]
-        for partition in self.replicas[broker]:
+            self.replicas[broker] = []
+        self.replicas[broker].extend(topic_partitions)
+        for partition in topic_partitions:
             broker_p = int(partition[1])
-            topic_keys.append(partition)
-            if ((broker_p+2)%self.total_brokers_connected) == 0:
-                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[self.total_brokers_connected], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+            if ((broker_p+2)%total_brokers_connected) == 0:
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[total_brokers_connected], self.raft_ports[((broker_p+3)%total_brokers_connected)]])
             
-            elif((broker_p+3)%self.total_brokers_connected) == 0:
-                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[self.total_brokers_connected]])
+            elif((broker_p+3)%total_brokers_connected) == 0:
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%total_brokers_connected)], self.raft_ports[total_brokers_connected]])
             
             else:
-                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%self.total_brokers_connected)], self.raft_ports[((broker_p+3)%self.total_brokers_connected)]])
+                raftportstosend.append([self.raft_ports[broker_p], self.raft_ports[((broker_p+2)%total_brokers_connected)], self.raft_ports[((broker_p+3)%total_brokers_connected)]])
          
-        for partition in raftportstosend:    
+        for partition in raftportstosend:
             partition.remove(self.raft_ports[broker])
         
-        transaction_to_broker = {'req': "ReplicaHandle", "topic_partitions": topic_keys, "other_raftports": raftportstosend}
+        transaction_to_broker = {'req': "ReplicaHandle", "topic_partitions": topic_partitions, "other_raftports": raftportstosend}
         self.brokers[broker].send_transaction(transaction_to_broker)
 
     def SendTransaction(self, transaction_req, context):
@@ -370,8 +406,9 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
         elif transaction_type == 'Enqueue':
-            for _i in range(self.total_brokers_connected):
-                broker = self.pick_broker()
+            total_brokers_connected = len(self.brokers)
+            for _i in range(total_brokers_connected):
+                broker = self.pick_broker(total_brokers_connected)
                 if broker == 0:
                     output = {"status": "failure",
                                 "message": "No brokers to handle request."}
@@ -394,6 +431,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                     except Exception as e:
                         print(e,"Here error")
                         self.brokers.pop(broker, None)
+                        if broker in self.brokers_connected: self.brokers_connected.remove(broker)
                         # output = {"status": "failure",
                         #         "message": "Could not publish message"}
                         # continue
@@ -421,6 +459,7 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
                 except Exception as e:
                     print(e,"Here error")
                     self.brokers.pop(broker, None)
+                    if broker in self.brokers_connected: self.brokers_connected.remove(broker)
                     # output = {"status": "failure",
                     #         "message": "Could not publish message"}
                     # continue
@@ -430,15 +469,15 @@ class ManagerService(pb2_grpc.ManagerServiceServicer):
             output = {"status": "failure", "message": "Invalid Operation"}
             return pb2.TransactionResponse(data=json.dumps(output).encode('utf-8'))
 
-    def pick_broker(self):
+    def pick_broker(self, total_brokers_connected):
         self.__lock.acquire(blocking=True)
         nextPick = ((self.last_picked_broker) %
-                    self.total_brokers_connected) + 1
+                    total_brokers_connected) + 1
         i = 0
-        while i < self.total_brokers_connected and nextPick not in self.brokers:
-            nextPick = ((nextPick) % self.total_brokers_connected) + 1
+        while i < total_brokers_connected and nextPick not in self.brokers:
+            nextPick = ((nextPick) % total_brokers_connected) + 1
             i += 1
-        if i == self.total_brokers_connected:
+        if i == total_brokers_connected:
             self.last_picked_broker = 0
             self.__lock.release()
             return 0
@@ -458,7 +497,7 @@ class Manager:
         server_thread = multiprocessing.Process(target=self.serve_grpc)
         server_thread.start()
 
-        time.sleep(5)
+        time.sleep(1)
         self_thread = multiprocessing.Process(target=self.call_brokers)
         self_thread.start()
 

@@ -101,7 +101,7 @@ class ManagerConnection:
         ret = True
         while True:
             try:
-                self.stub.HealthCheck(m_pb2.HeartBeat())
+                self.stub.HealthCheck(m_pb2.HeartBeat(broker_id=0))
             except:
                 ret = False
                 if not printed:

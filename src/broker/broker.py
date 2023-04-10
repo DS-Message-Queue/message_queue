@@ -53,7 +53,8 @@ class ManagerConnection:
         ret = True
         while True:
             try:
-                self.stub.HealthCheck(m_pb2.HeartBeat())
+                broker_id = self.broker_id if self.broker_id is not None else 0
+                self.stub.HealthCheck(m_pb2.HeartBeat(broker_id=self.broker_id))
             except:
                 ret = False
                 if not printed:
@@ -96,11 +97,12 @@ class Raft(SyncObj):
         # init queries list, aka., topic's partition
         self.queries = []
 
-        print('Created Raft Instance:', selfNodeAddr, ',', otherNodeAddrs)
+        print('Created Raft Instance for:', topic_partition)
+        self.topic_partition = topic_partition
     
     @replicated
     def append_query(self, query):
-        print('append_query executed')
+        print('append_query executed for', self.topic_partition)
         self.queries.append(query)
 
     @replicated
@@ -137,7 +139,7 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
                 self.__portToTCPNode[p] = tcpnode
         
         # create common objects
-        self.__conf = SyncObjConf()
+        self.__conf = SyncObjConf(autoTick=False)
         self.__poller = createPoller(self.__conf.pollerType)
 
         # create transport object
@@ -146,21 +148,24 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         # map to store raft instance for each topic's partition
         # self.__topic_partition_to_raft[(topic, partition)] = Raft(...)
         self.__topic_partition_to_raft = {}
+        self.__topic_partitions = []
 
         # poll for messages
         threading.Thread(target=self.poll_thread).start()
-
-        # init transport
-        # self.__transport._onTick()
 
     def poll_thread(self):
         while True:
             # select command is used internally and callbacks are attached
             self.__poller.poll(0.0)
 
+            # tick the raft instances
+            topic_partitions = self.__topic_partitions[:]
+            for topic_partition in topic_partitions:
+                self.__topic_partition_to_raft[topic_partition].doTick()
+
     def clear_data(self):
-        for raft_instance in self.__topic_partition_to_raft.values():
-            raft_instance.clear_queries()
+        self.__topic_partitions.clear()
+        self.__topic_partition_to_raft.clear()
         for topic in self.__topics:
             for partition in self.__topics[topic]:
                 if partition == 'consumers' or partition == 'producers':
@@ -215,25 +220,18 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
             topic_partitions = transaction['topic_partitions']
             raftports = transaction['other_raftports']
 
-            print('raft ports - ', raftports)
-            
             # create Raft Instances
-            print('self tcp, ', self.__portToTCPNode)
             for i in range(len(topic_partitions)):
                 raftothernodes = []
                 for port in raftports[i]:
                     raftothernodes.append(self.__portToTCPNode[port])
                 
                 topic_partition = tuple(topic_partitions[i])
-                print(topic_partition)
+                if topic_partition in self.__topic_partition_to_raft:
+                    continue
                 self.__topic_partition_to_raft[topic_partition] = Raft(self.__transport, topic_partition
                                                                        , self.__selfnode, raftothernodes, self.__conf)
-            
-            # for raft in self.__topic_partition_to_raft.values():
-            #     new_leader = None
-            #     while new_leader is None:
-            #         new_leader = raft._getLeader()
-            #     print('leader =', new_leader)
+                self.__topic_partitions.append(topic_partition)
 
             return {}
         else:

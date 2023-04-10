@@ -46,7 +46,9 @@ message Response{
  bool status = 1;
  int32 replicaId = 2;
 }
-message HeartBeat{}
+message HeartBeat{
+ int32 broker_id = 1;
+}
 
 message UpdatesFromBroker{}
 

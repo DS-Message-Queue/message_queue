@@ -201,6 +201,9 @@ class SyncObj(object):
             self.__transport = transport
             # add transport callback here
             self.addOnTickCallback(self.__transport._onTick)
+            # assume they are connected
+            for node in otherNodes:
+                self.__connectedNodes.add(node)
         else:
             self.__transport = transportClass(self, self.__selfNode, self.__otherNodes)
         self.__transport.setOnNodeConnectedCallback(self.__onNodeConnected)
