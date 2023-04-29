@@ -19,7 +19,10 @@ message Transaction{
                   // {'req': 'Enqueue', 'pid': 12, 'topic': 'foo', 'partition': 'B', 'message': 'test'}
 }
 
-message Request{}
+message Request{
+ string topic = 1;
+ string partition = 2;
+}
 message Status{}
 
 message Query{

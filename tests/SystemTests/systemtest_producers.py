@@ -15,6 +15,7 @@ def produce(p, statusList, index, filename):
                     time.sleep(0.0005)
                 break
             except MyProducerError as e:
+                print('MyProducerError:', e)
                 pass
             except:
                 print('Connection Error, retrying...')

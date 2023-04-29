@@ -10,13 +10,20 @@ from src.broker.utils import raise_error, raise_success
 import multiprocessing
 import threading
 
+# Raft
+from src.pysyncobjm import SyncObj, replicated, SyncObjConf
+from src.pysyncobjm.transport import TCPTransport
+from src.pysyncobjm.poller import createPoller
+from src.pysyncobjm.node import TCPNode
+from functools import partial
+
 
 class ManagerConnection:
     """
     Client for gRPC functionality
     """
 
-    def __init__(self, server_host, server_port, broker_host, broker_port):
+    def __init__(self, server_host, server_port, broker_host, broker_port, raft_port):
 
         # instantiate broker_id
         self.broker_id = None
@@ -35,6 +42,8 @@ class ManagerConnection:
         # bind to broker server
         self.broker_stub = b_pb2_grpc.BrokerServiceStub(self.broker_channel)
 
+        self.raft_port = raft_port
+
     def health_check(self):
         """
             If manager connection is active, this return True
@@ -44,7 +53,8 @@ class ManagerConnection:
         ret = True
         while True:
             try:
-                self.stub.HealthCheck(m_pb2.HeartBeat())
+                broker_id = self.broker_id if self.broker_id is not None else 0
+                self.stub.HealthCheck(m_pb2.HeartBeat(broker_id=self.broker_id))
             except:
                 ret = False
                 if not printed:
@@ -66,7 +76,7 @@ class ManagerConnection:
         if needs_register:
             self.health_check()
             Status = self.stub.RegisterBroker(m_pb2.BrokerDetails(
-                host=host, port=port, token=token
+                host=host, port=port, token=token, raft_port=self.raft_port
             ))
 
             if Status.status:
@@ -77,18 +87,85 @@ class ManagerConnection:
                 ))
 
 
+class Raft(SyncObj):
+    """
+        Each topic's partition is handled by a single Raft Instance
+    """
+    def __init__(self, transport, topic_partition, selfNodeAddr, otherNodeAddrs, conf):
+        super(Raft, self).__init__(topic_partition, selfNodeAddr, otherNodeAddrs, conf, transport=transport)
+        
+        # init queries list, aka., topic's partition
+        self.queries = []
+
+        print('Created Raft Instance for:', topic_partition)
+        self.topic_partition = topic_partition
+    
+    @replicated
+    def append_query(self, query):
+        print('append_query executed for', self.topic_partition)
+        self.queries.append(query)
+
+    @replicated
+    def clear_queries(self):
+        self.queries.clear()
+
+    def get_queries(self):
+        return self.queries.copy()
+
+
 class BrokerService(b_pb2_grpc.BrokerServiceServicer):
 
-    def __init__(self):
+    def __init__(self, raft_port, other_raft_ports):
         super().__init__()
         self.__topics = {}
         self.__producers = {}
         self.broker_id = None
         self.__publish_lock = threading.Lock()
-        self.__enqueue_logs = []
+
+        # all raft communications happend through this port
+        self.__raft_port = raft_port
+
+        # raft ports of all other brokers
+        self.__other_raft_ports = other_raft_ports
+
+        # create TCPNodes
+        self.__selfnode = TCPNode('localhost:' + self.__raft_port)
+        self.__othernodes = []
+        self.__portToTCPNode = {}
+        for p in self.__other_raft_ports:
+            if p != self.__raft_port:
+                tcpnode = TCPNode('localhost:' + p)
+                self.__othernodes.append(tcpnode)
+                self.__portToTCPNode[p] = tcpnode
+        
+        # create common objects
+        self.__conf = SyncObjConf(autoTick=False)
+        self.__poller = createPoller(self.__conf.pollerType)
+
+        # create transport object
+        self.__transport = TCPTransport(self.__poller, self.__conf, self.__selfnode, self.__othernodes)
+
+        # map to store raft instance for each topic's partition
+        # self.__topic_partition_to_raft[(topic, partition)] = Raft(...)
+        self.__topic_partition_to_raft = {}
+        self.__topic_partitions = []
+
+        # poll for messages
+        threading.Thread(target=self.poll_thread).start()
+
+    def poll_thread(self):
+        while True:
+            # select command is used internally and callbacks are attached
+            self.__poller.poll(0.0)
+
+            # tick the raft instances
+            topic_partitions = self.__topic_partitions[:]
+            for topic_partition in topic_partitions:
+                self.__topic_partition_to_raft[topic_partition].doTick()
 
     def clear_data(self):
-        self.__enqueue_logs.clear()
+        self.__topic_partitions.clear()
+        self.__topic_partition_to_raft.clear()
         for topic in self.__topics:
             for partition in self.__topics[topic]:
                 if partition == 'consumers' or partition == 'producers':
@@ -101,10 +178,14 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         return b_pb2.Status()
 
     def GetUpdates(self, request, context):
+        # get the queries from the partition
+        topic_partition = (request.topic, request.partition)
+        temp = self.__topic_partition_to_raft[topic_partition].get_queries()
+        self.__topic_partition_to_raft[topic_partition].clear_queries()
         # Send data from here to Manager
-        temp = self.__enqueue_logs.copy()
-        self.__enqueue_logs.clear()
+        # print(temp)
         for query in temp:
+            # print(query)
             yield b_pb2.Query(query=query)
 
     def SendTransaction(self, transaction_req, context):
@@ -134,6 +215,24 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
         elif req_type == 'Init':
             self.__topics = transaction['topics']
             self.__producers = transaction['producers']
+            return {}
+        elif req_type == 'ReplicaHandle':
+            topic_partitions = transaction['topic_partitions']
+            raftports = transaction['other_raftports']
+
+            # create Raft Instances
+            for i in range(len(topic_partitions)):
+                raftothernodes = []
+                for port in raftports[i]:
+                    raftothernodes.append(self.__portToTCPNode[port])
+                
+                topic_partition = tuple(topic_partitions[i])
+                if topic_partition in self.__topic_partition_to_raft:
+                    continue
+                self.__topic_partition_to_raft[topic_partition] = Raft(self.__transport, topic_partition
+                                                                       , self.__selfnode, raftothernodes, self.__conf)
+                self.__topic_partitions.append(topic_partition)
+
             return {}
         else:
             return self.add_producer(transaction["pid"], transaction["topic"])
@@ -167,17 +266,30 @@ class BrokerService(b_pb2_grpc.BrokerServiceServicer):
                     "subscribers": 0
                 }]
             }
-        self.__enqueue_logs.append("INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) +
-                                   "', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + "' and partition_id =" + str(self.broker_id) + ");")
-        self.__enqueue_logs.append("INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" +
-                                   message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");")
+
+        topic_partition = (topic_name, str(self.broker_id))
+        if topic_partition not in self.__topic_partition_to_raft:
+            self.__publish_lock.release()
+            return raise_error("Raft Instance not ready.")
+
+        query = "INSERT INTO topic(topic_name, partition_id,bias) SELECT '" + topic_name + "','" + str(self.broker_id) + \
+                "', '0' WHERE NOT EXISTS (SELECT topic_name, partition_id FROM topic WHERE topic_name = '" + topic_name + \
+                "' and partition_id =" + str(self.broker_id) + ");"
+        # Raft append_query
+        self.__topic_partition_to_raft[(topic_name, str(self.broker_id))].append_query(query)
+        
+        query = "INSERT INTO message(message, topic_name, partition_id, subscribers) VALUES('" + \
+                message + "', '" + topic_name + "', " + str(self.broker_id) + ", " + str(0) + ");"
+        # Raft append_query
+        self.__topic_partition_to_raft[(topic_name, str(self.broker_id))].append_query(query)
+
         res = raise_success("Message added successfully.")
         self.__publish_lock.release()
         return res
 
 
 class Broker:
-    def __init__(self, port):
+    def __init__(self, port, raft_port, other_raft_ports):
 
         # retrieve broker config
         with open('./src/broker/broker.json', 'r') as config_file:
@@ -185,15 +297,16 @@ class Broker:
             self.host = self.config['host']
             self.port = port
             self.token = self.config['token']
+        self.raft_port = raft_port
 
         # start broker service
-        t = multiprocessing.Process(target=self.serve)
+        t = multiprocessing.Process(target=self.serve, args=[raft_port, other_raft_ports])
         t.start()
 
         # manager connection
         client = ManagerConnection(
             self.config['server_host'], self.config['server_port'],
-            self.config['host'], self.port
+            self.config['host'], self.port, self.raft_port
         )
 
         time.sleep(2)
@@ -204,9 +317,9 @@ class Broker:
 
         t.join()
 
-    def serve(self):
+    def serve(self, raft_port, other_raft_ports):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
-        b_pb2_grpc.add_BrokerServiceServicer_to_server(BrokerService(), server)
+        b_pb2_grpc.add_BrokerServiceServicer_to_server(BrokerService(raft_port, other_raft_ports), server)
         ip = '{}:{}'.format(self.config['host'], self.port)
         server.add_insecure_port('[::]:' + self.port)
         print('broker listening at:', ip)

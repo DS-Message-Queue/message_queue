@@ -16,6 +16,7 @@ message BrokerDetails{
  string host = 1;
  string port = 2;
  string token = 3;  // authentication
+ string raft_port = 4;
 }
 
 message Query{
@@ -45,7 +46,9 @@ message Response{
  bool status = 1;
  int32 replicaId = 2;
 }
-message HeartBeat{}
+message HeartBeat{
+ int32 broker_id = 1;
+}
 
 message UpdatesFromBroker{}
 
