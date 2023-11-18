@@ -9,7 +9,7 @@ import subprocess
 import signal
 
 def clear_database():
-    r = requests.get(url = 'http://127.0.0.1:8002/cleardb', params = {'code' : 'xBjfq12nh'})
+    r = requests.get(url = 'http://127.0.0.1:8001/cleardb', params = {'code' : 'xBjfq12nh'})
     if 'failure' in r.text:
         return False
     return True

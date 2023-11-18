@@ -1,3 +1,5 @@
-from src.manager_replica.new_replica import *
+'''Run Manager Replica'''
+from src.manager_replica.new_replica import ManagerReplica
 
-ManagerReplica(__name__, 'localhost', '8001', 'localhost', '50053')
+if __name__ == "__main__":
+    ManagerReplica()
