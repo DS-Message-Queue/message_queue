@@ -21,11 +21,12 @@ class databases:
             return psycopg2.connect(
                 database="main_db",
                 user="postgres",
-                password="test123",
+                password="avCurry@30",
                 host="localhost",
                 port=5432,
             )
-        except:
+        except Exception as e:
+            print('db connection error:', e)
             return False
 
     def create_tables(self, conn):

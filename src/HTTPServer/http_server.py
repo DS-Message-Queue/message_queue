@@ -1,12 +1,10 @@
+'''HTTP Server'''
+import json
 from flask import Flask, request
-from src.controller.main import Message_Queue
+import grpc
 import src.protos.managerservice_pb2_grpc as pb2_grpc
 import src.protos.managerservice_pb2 as pb2
-import grpc
-import json
 
-
-# message_queue = Message_Queue()
 
 class ManagerConnection:
     """
@@ -31,14 +29,16 @@ class ManagerConnection:
         return response
 
 
-
 class MyServerHandler:
-    def __init__(self, name, grpc_host, grpc_port):
+    def __init__(self, name, manager_grpc_host, manager_grpc_port, replica_grpc_host, replica_grpc_port):
         # Connect to db server here and store necessary variables in self
         # Be aware that this gets called everytime an HTTP request is made
         # So maybe there is a better place for it
 
-        self.manager_rpc = ManagerConnection(grpc_host, grpc_port)
+        self.manager_rpc = ManagerConnection(
+            manager_grpc_host, manager_grpc_port)
+        self.replica_rpc = ManagerConnection(
+            replica_grpc_host, replica_grpc_port)
         self.app = Flask(name)
 
         #  Returns the list of topics
@@ -92,7 +92,7 @@ class MyServerHandler:
         # print('topics requested')
         response = {}
         transaction = {'req': 'GetTopics'}
-        ret = self.manager_rpc.send_transaction(transaction)
+        ret = self.replica_rpc.send_transaction(transaction)
         status = 400
         response.update(ret)
         if response['status'] == 'success':
@@ -117,7 +117,7 @@ class MyServerHandler:
             topic = data_json['topic']
             # generate consumer_id
             transaction = {'req': 'GetPartition', 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
+            ret = self.replica_rpc.send_transaction(transaction)
             response.update(ret)
             if response['status'] == 'success':
                 status = 200
@@ -142,14 +142,15 @@ class MyServerHandler:
             json_is_valid = False
 
         if json_is_valid and len(data_json) == 3 and 'topic' in data_json \
-                                                    and 'consumer_id' in data_json:
-            topic        =  data_json['topic']
-            consumer_id  =  int(data_json['consumer_id'])
+                and 'consumer_id' in data_json:
+            topic = data_json['topic']
+            consumer_id = int(data_json['consumer_id'])
             partition = int(data_json['partition'])
 
             # dequeue
-            transaction = {'req': 'DequeueWithPartition', 'consumer_id': consumer_id, 'topic': topic, 'partition': partition}
-            ret = self.manager_rpc.send_transaction(transaction)
+            transaction = {'req': 'DequeueWithPartition',
+                           'consumer_id': consumer_id, 'topic': topic, 'partition': partition}
+            ret = self.replica_rpc.send_transaction(transaction)
 
             response.update(ret)
 
@@ -157,13 +158,14 @@ class MyServerHandler:
                 status = 200
 
         elif json_is_valid and len(data_json) == 2 and 'topic' in data_json \
-                                                    and 'consumer_id' in data_json:
-            topic        =  data_json['topic']
-            consumer_id  =  int(data_json['consumer_id'])
+                and 'consumer_id' in data_json:
+            topic = data_json['topic']
+            consumer_id = int(data_json['consumer_id'])
 
             # dequeue
-            transaction = {'req': 'Dequeue', 'consumer_id': consumer_id, 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
+            transaction = {'req': 'Dequeue',
+                           'consumer_id': consumer_id, 'topic': topic}
+            ret = self.replica_rpc.send_transaction(transaction)
 
             response.update(ret)
 
@@ -194,14 +196,15 @@ class MyServerHandler:
             json_is_valid = False
 
         if json_is_valid and len(data_json) == 2 and 'topic' in data_json \
-                                                    and 'consumer_id' in data_json:
-            topic        =  data_json['topic']
-            consumer_id  =  int(data_json['consumer_id'])
+                and 'consumer_id' in data_json:
+            topic = data_json['topic']
+            consumer_id = int(data_json['consumer_id'])
 
             # size
             # ret = message_queue.log_size(topic,consumer_id)
-            transaction = {'req': 'Size', 'topic': topic, 'consumer_id': consumer_id}
-            ret = self.manager_rpc.send_transaction(transaction)
+            transaction = {'req': 'Size', 'topic': topic,
+                           'consumer_id': consumer_id}
+            ret = self.replica_rpc.send_transaction(transaction)
             response.update(ret)
             if response['status'] == 'success':
                 status = 200
@@ -222,6 +225,7 @@ class MyServerHandler:
         if 'code' in params and params['code'] == 'xBjfq12nh':
             transaction = {'req': 'ClearDatabase'}
             self.manager_rpc.send_transaction(transaction)
+            self.replica_rpc.send_transaction(transaction)
             response['status'] = 'success'
             status = 200
         else:
@@ -278,7 +282,7 @@ class MyServerHandler:
             # generate consumer_id
             # ret = message_queue.register_consumer(topic)
             transaction = {'req': 'ConsumerRegister', 'topic': topic}
-            ret = self.manager_rpc.send_transaction(transaction)
+            ret = self.replica_rpc.send_transaction(transaction)
             response.update(ret)
             if response['status'] == 'success':
                 status = 200
@@ -345,7 +349,7 @@ class MyServerHandler:
                            "producer_id": producer_id, "message": message}
             ret = self.manager_rpc.send_transaction(transaction)
             response.update(ret)
-            
+
             if 'status' not in response:
                 # incorrect params in data_json
                 print('invalid response received from rpc server:', response)
@@ -366,7 +370,7 @@ class MyServerHandler:
                            "producer_id": producer_id, "message": message, 'partition': partition}
             ret = self.manager_rpc.send_transaction(transaction)
             response.update(ret)
-            
+
             if 'status' not in response:
                 # incorrect params in data_json
                 print('invalid response received from rpc server:', response)
@@ -382,9 +386,12 @@ class MyServerHandler:
 
         response = json.dumps(response)
         return response, status
+
+
 class MyServer:
-    def __init__(self, name, http_host, http_port, grpc_host, grpc_port):
+    def __init__(self, name, http_host, http_port, manager_grpc_host, manager_grpc_port, replica_grpc_host, replica_grpc_port):
         print("Starting Server..")
-        server = MyServerHandler(name, grpc_host, grpc_port)
+        server = MyServerHandler(
+            name, manager_grpc_host, manager_grpc_port, replica_grpc_host, replica_grpc_port)
         print("Server is running on " + http_host + ":" + http_port)
         server.run(http_host, http_port)

@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fsrc/protos/managerservice.proto\x12\x0emanagerservice\"M\n\rBrokerDetails\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\t\x12\r\n\x05token\x18\x03 \x01(\t\x12\x11\n\traft_port\x18\x04 \x01(\t\"\x16\n\x05Query\x12\r\n\x05query\x18\x01 \x01(\t\"\x1f\n\x0eReplicaDetails\x12\r\n\x05token\x18\x01 \x01(\t\"*\n\x06Status\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x10\n\x08\x62rokerId\x18\x02 \x01(\x05\"\x1b\n\x0bTransaction\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"#\n\x13TransactionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\t\n\x07Request\"-\n\x08Response\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x11\n\treplicaId\x18\x02 \x01(\x05\"\x1e\n\tHeartBeat\x12\x11\n\tbroker_id\x18\x01 \x01(\x05\"\x13\n\x11UpdatesFromBroker2\xee\x03\n\x0eManagerService\x12I\n\x0eRegisterBroker\x12\x1d.managerservice.BrokerDetails\x1a\x16.managerservice.Status\"\x00\x12\x45\n\x0bHealthCheck\x12\x19.managerservice.HeartBeat\x1a\x19.managerservice.HeartBeat\"\x00\x12M\n\x0fRegisterReplica\x12\x1e.managerservice.ReplicaDetails\x1a\x18.managerservice.Response\"\x00\x12@\n\nGetUpdates\x12\x17.managerservice.Request\x1a\x15.managerservice.Query\"\x00\x30\x01\x12U\n\x0fSendTransaction\x12\x1b.managerservice.Transaction\x1a#.managerservice.TransactionResponse\"\x00\x12\x62\n\x18ReceiveUpdatesFromBroker\x12!.managerservice.UpdatesFromBroker\x1a!.managerservice.UpdatesFromBroker\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fsrc/protos/managerservice.proto\x12\x0emanagerservice\"M\n\rBrokerDetails\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\t\x12\r\n\x05token\x18\x03 \x01(\t\x12\x11\n\traft_port\x18\x04 \x01(\t\"\x16\n\x05Query\x12\r\n\x05query\x18\x01 \x01(\t\"\x1f\n\x0eReplicaDetails\x12\r\n\x05token\x18\x01 \x01(\t\"\x18\n\x06Status\x12\x0e\n\x06status\x18\x01 \x01(\x08\"\x1b\n\x0bTransaction\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"#\n\x13TransactionResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\t\n\x07Request\"-\n\x08Response\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x11\n\treplicaId\x18\x02 \x01(\x05\"\x1e\n\tHeartBeat\x12\x11\n\tbroker_id\x18\x01 \x01(\x05\x32\x8c\x03\n\x0eManagerService\x12I\n\x0eRegisterBroker\x12\x1d.managerservice.BrokerDetails\x1a\x16.managerservice.Status\"\x00\x12\x45\n\x0bHealthCheck\x12\x19.managerservice.HeartBeat\x1a\x19.managerservice.HeartBeat\"\x00\x12M\n\x0fRegisterReplica\x12\x1e.managerservice.ReplicaDetails\x1a\x18.managerservice.Response\"\x00\x12\x42\n\x0bPushUpdates\x12\x15.managerservice.Query\x1a\x18.managerservice.Response\"\x00(\x01\x12U\n\x0fSendTransaction\x12\x1b.managerservice.Transaction\x1a#.managerservice.TransactionResponse\"\x00\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'src.protos.managerservice_pb2', globals())
@@ -27,19 +27,17 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _REPLICADETAILS._serialized_start=154
   _REPLICADETAILS._serialized_end=185
   _STATUS._serialized_start=187
-  _STATUS._serialized_end=229
-  _TRANSACTION._serialized_start=231
-  _TRANSACTION._serialized_end=258
-  _TRANSACTIONRESPONSE._serialized_start=260
-  _TRANSACTIONRESPONSE._serialized_end=295
-  _REQUEST._serialized_start=297
-  _REQUEST._serialized_end=306
-  _RESPONSE._serialized_start=308
-  _RESPONSE._serialized_end=353
-  _HEARTBEAT._serialized_start=355
-  _HEARTBEAT._serialized_end=385
-  _UPDATESFROMBROKER._serialized_start=387
-  _UPDATESFROMBROKER._serialized_end=406
-  _MANAGERSERVICE._serialized_start=409
-  _MANAGERSERVICE._serialized_end=903
+  _STATUS._serialized_end=211
+  _TRANSACTION._serialized_start=213
+  _TRANSACTION._serialized_end=240
+  _TRANSACTIONRESPONSE._serialized_start=242
+  _TRANSACTIONRESPONSE._serialized_end=277
+  _REQUEST._serialized_start=279
+  _REQUEST._serialized_end=288
+  _RESPONSE._serialized_start=290
+  _RESPONSE._serialized_end=335
+  _HEARTBEAT._serialized_start=337
+  _HEARTBEAT._serialized_end=367
+  _MANAGERSERVICE._serialized_start=370
+  _MANAGERSERVICE._serialized_end=766
 # @@protoc_insertion_point(module_scope)

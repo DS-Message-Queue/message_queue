@@ -1,7 +1,7 @@
-from src.broker.broker import *
+'''Run Broker'''
 import sys
+from src.broker.broker import Broker
 
-# Added this so as to make it run in all OS
 if __name__ == "__main__":
     if len(sys.argv) > 4 and sys.argv[1] and sys.argv[2]:
         grpc_port = sys.argv[1]
