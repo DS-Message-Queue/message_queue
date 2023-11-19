@@ -148,7 +148,7 @@ class Manager:
         message_queue.worker()
 
     def serve_grpc(self, mq:Queue, bq:Queue, rq:Queue):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
         pb2_grpc.add_ManagerServiceServicer_to_server(ManagerService(mq, bq, rq), server)
         server.add_insecure_port('[::]:50051')
         print('manager listening at:', 'localhost:50051')

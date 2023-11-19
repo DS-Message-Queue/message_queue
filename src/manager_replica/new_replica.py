@@ -7,7 +7,7 @@ import psycopg2
 import grpc
 import src.protos.managerservice_pb2_grpc as m_pb2_grpc
 import src.protos.managerservice_pb2 as m_pb2
-from src.controller.utils import raise_error, raise_success
+from src.broker.utils import raise_error, raise_success
 
 
 class ManagerConnection:
@@ -572,7 +572,7 @@ class ManagerReplica:
         self.serve_grpc()
 
     def serve_grpc(self):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
         m_pb2_grpc.add_ManagerServiceServicer_to_server(
             ManagerReplicaService(), server)
         server.add_insecure_port('[::]:50053')
